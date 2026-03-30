@@ -21,6 +21,18 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboard
 from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters, CallbackQueryHandler
 from telegram.error import Conflict, NetworkError, TimedOut
 
+# === НАСТРОЙКА TOR ПРОКСИ ===
+import socks
+import socket
+
+socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 9050)
+#
+socket.socket = socks.socksocket
+
+def getaddrinfo(*args):
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
+socket.getaddrinfo = getaddrinfo
+
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
@@ -1479,7 +1491,7 @@ def safe_start(updater):
     for attempt in range(max_retries):
         try:
             updater.start_polling(timeout=60, poll_interval=1.0, drop_pending_updates=True)
-            logger.info("Бот успешно запущен")
+            logger.info("Бот запущен через Tor")
             return True
         except Conflict as e:
             logger.error(f"Конфликт: {e}")
@@ -1503,6 +1515,21 @@ def safe_start(updater):
     return False
 
 def main():
+    logger.info("Проверка Tor соединения...")
+    try:
+        import requests
+        proxies = {
+            "http": "socks5h://127.0.0.1:9050",
+            "https": "socks5h://127.0.0.1:9050"
+        }
+        r = requests.get("https://check.torproject.org/", proxies=proxies, timeout=15)
+        if "Congratulations" in r.text or "This browser is configured to use Tor" in r.text:
+            logger.info("Tor прокси работает!")
+        else:
+            logger.warning("Tor прокси не обнаружен, но бот попробует подключиться")
+    except Exception as e:
+        logger.warning(f"Не удалось проверить Tor: {e}")
+    
     kill_other_bots()
     init_db()
     
@@ -1528,12 +1555,13 @@ def main():
     dp.add_error_handler(error_handler)
     
     if safe_start(updater):
-        logger.info("Бот @PodrugaTestBot успешно запущен!")
+        logger.info("Бот @PodrugaTestBot успешно запущен через Tor!")
         updater.idle()
     else:
         logger.error("Не удалось запустить бота. Проверьте:")
-        logger.error("1. Интернет-соединение работает")
-        logger.error("2. Токен бота правильный")
+        logger.error("1. Tor Browser запущен и слушает порт 9050")
+        logger.error("2. Интернет-соединение работает")
+        logger.error("3. Токен бота правильный")
 
 if __name__ == "__main__":
     main()
