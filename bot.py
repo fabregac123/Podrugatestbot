@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 25.0 - РАБОЧАЯ ВЕРСИЯ
+Версия: 26.0 - РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -872,7 +872,6 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     )
 
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка выбора группы вопросов"""
     query = update.callback_query
     await query.answer()
     
@@ -1215,7 +1214,7 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📝 *Создано тестов:* {created}
 🎯 *Пройдено тестов:* {tests_passed}
-👭 *Приглашено подруг:* {referrals}/{MAX_REFERRAL_BONUS}
+👭 *Приглашено подруг:* {referrals}
 
 📦 *Тестов доступно:* {tests_left}
 🔢 *Максимум вопросов:* {max_q}{unlimited_text}
@@ -1267,7 +1266,7 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔗 *Твоя ссылка:* 
 {link}
 
-👭 *Приглашено подруг:* {user.get('referral_count', 0)}/{MAX_REFERRAL_BONUS}
+👭 *Приглашено подруг:* {user.get('referral_count', 0)}
 
 💡 *Отправь ссылку подруге, и она получит 1 тест на старт!*
 
@@ -1375,7 +1374,15 @@ async def cancel_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def open_shop_from_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
+    # Отправляем новое сообщение с магазином
     await shop(update, context)
+    
+    # Удаляем предыдущее сообщение с премиум-блокировкой
+    try:
+        await query.message.delete()
+    except:
+        pass
 
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
