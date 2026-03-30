@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 27.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 28.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -29,7 +29,7 @@ BOT_USERNAME = "PodrugaTestBot"
 DB_NAME = 'bot_database.db'
 START_TESTS = 1
 DAILY_BONUS_POINTS = 10
-MAX_REFERRAL_BONUS = 3
+MAX_REFERRAL_BONUS = 999  # Безлимит
 MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
@@ -179,7 +179,7 @@ WOW_EMOJIS = {
     'test': '📝', 'friend': '👯', 'crown': '👑',
     'star': '⭐', 'heart': '💖', 'daily': '🎁',
     'achievement': '🏆', 'shop': '🛍️', 'money': '💰',
-    'top': '🏆', 'back': '🔙', 'stats': '📊'
+    'top': '🏆', 'back': '🔙', 'stats': '📊', 'cancel': '❌'
 }
 
 # === БАЗА ДАННЫХ ===
@@ -528,9 +528,9 @@ def get_friendship_status(score):
 def get_main_keyboard():
     keyboard = [
         [KeyboardButton(f"{WOW_EMOJIS['test']} Создать тест"), KeyboardButton(f"{WOW_EMOJIS['crown']} Мои тесты")],
-        [KeyboardButton(f"{WOW_EMOJIS['stats']} Моя статистика"), KeyboardButton(f"{WOW_EMOJIS['daily']} Ежедневный бонус")],
+        [KeyboardButton(f"{WOW_EMOJIS['stats']} Моя статистика"), KeyboardButton(f"{WOW_EMOJIS['daily']} Бонус")],
         [KeyboardButton(f"{WOW_EMOJIS['money']} Пригласить подруг"), KeyboardButton(f"{WOW_EMOJIS['shop']} Магазин")],
-        [KeyboardButton(f"{WOW_EMOJIS['top']} Топ подруг")]
+        [KeyboardButton(f"{WOW_EMOJIS['top']} Топ подруг"), KeyboardButton(f"{WOW_EMOJIS['cancel']} Отмена")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -673,7 +673,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if available <= 0:
         await update.message.reply_text(
             f"{WOW_EMOJIS['error']} У тебя закончились тесты!\n\n"
-            "🎁 Получи ежедневный бонус или пригласи подругу!\n"
+            "🎁 Получи бонус или пригласи подругу!\n"
             "💎 Или загляни в магазин",
             reply_markup=get_main_keyboard()
         )
@@ -866,16 +866,13 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     data['waiting_for_option'] = True
     logger.info(f"Начинаем сбор вариантов для вопроса {data['current_q'] + 1}")
     
-    try:
-        await query.message.edit_text(
-            f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
-            f"❓ {data['current_question_text']}\n\n"
-            f"✏️ Напишите *вариант ответа №1*:",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_cancel_keyboard()
-        )
-    except Exception as e:
-        logger.error(f"Ошибка при выборе вопроса: {e}")
+    await query.message.reply_text(
+        f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
+        f"❓ {data['current_question_text']}\n\n"
+        f"✏️ Напишите *вариант ответа №1*:",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_cancel_keyboard()
+    )
 
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -928,14 +925,6 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
         )
     except Exception as e:
         logger.error(f"Ошибка при редактировании сообщения: {e}")
-        await query.message.reply_text(
-            f"✨ Выбрана группа: {group_name}\n\n"
-            f"📊 *Сколько вопросов будет в тесте?*\n"
-            f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
-            f"✏️ Напишите число:",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_back_keyboard()
-        )
 
 async def premium_group_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1248,7 +1237,7 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if result[0] is None:
         await update.message.reply_text(
-            f"{WOW_EMOJIS['daily']} 🎁 *Ежедневный бонус*\n\n"
+            f"{WOW_EMOJIS['daily']} 🎁 *Бонус*\n\n"
             f"Ты уже получала бонус сегодня!\n"
             f"🔥 Серия: {result[1]} дней\n"
             f"⏰ Возвращайся завтра!",
@@ -1258,7 +1247,7 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     bonus, streak = result
-    text = f"{WOW_EMOJIS['daily']} 🎁 *ЕЖЕДНЕВНЫЙ БОНУС!*\n\n✨ *+{bonus} очков!*\n🔥 *Серия:* {streak} дней\n\n💫 Приходи завтра снова!"
+    text = f"{WOW_EMOJIS['daily']} 🎁 *БОНУС!*\n\n✨ *+{bonus} очков!*\n🔥 *Серия:* {streak} дней\n\n💫 Приходи завтра снова!"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1274,7 +1263,6 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""{WOW_EMOJIS['money']} *ПРИГЛАСИ ПОДРУГУ* {WOW_EMOJIS['money']}
 
 🎁 *За каждую подругу ты получаешь +1 тест!*
-📌 *Максимум:* {MAX_REFERRAL_BONUS} теста
 
 🔗 *Твоя ссылка:* 
 {link}
@@ -1286,7 +1274,7 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
 ✨ *Как это работает:*
 1. Подруга переходит по ссылке
 2. Начинает использовать бота
-3. Ты получаешь +1 тест (максимум {MAX_REFERRAL_BONUS})"""
+3. Ты получаешь +1 тест"""
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
@@ -1397,21 +1385,11 @@ async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Ошибка при возврате к группам: {e}")
-        await query.message.reply_text(
-            "✨ Выбери *группу вопросов*:",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_question_groups_keyboard(user_id)
-        )
 
 async def open_shop_from_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
-    try:
-        await query.message.delete()
-    except:
-        pass
-    
+    # Просто вызываем магазин, НЕ удаляем сообщение
     await shop(update, context)
 
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1519,7 +1497,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await my_tests(update, context)
     elif text == f"{WOW_EMOJIS['stats']} Моя статистика":
         await my_stats(update, context)
-    elif text == f"{WOW_EMOJIS['daily']} Ежедневный бонус":
+    elif text == f"{WOW_EMOJIS['daily']} Бонус":
         await daily_bonus(update, context)
     elif text == f"{WOW_EMOJIS['money']} Пригласить подруг":
         await invite(update, context)
@@ -1527,6 +1505,8 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await shop(update, context)
     elif text == f"{WOW_EMOJIS['top']} Топ подруг":
         await top_friends(update, context)
+    elif text == f"{WOW_EMOJIS['cancel']} Отмена":
+        await cancel_creation(update, context)
     elif text == "➕ Добавить вариант":
         await add_option(update, context)
     elif text == "✅ Готово":
@@ -1589,18 +1569,19 @@ def main():
     try:
         timeout = httpx.Timeout(30.0, connect=30.0, read=30.0, write=30.0)
         http_client = httpx.AsyncClient(timeout=timeout)
-
-        app = Application.builder().token(TOKEN).build()
+        
+        app = Application.builder().token(TOKEN).http_client(http_client).build()
         
         app.add_handler(CommandHandler("start", start))
         
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['test']} Создать тест$"), create_test_start))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['crown']} Мои тесты$"), my_tests))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['stats']} Моя статистика$"), my_stats))
-        app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['daily']} Ежедневный бонус$"), daily_bonus))
+        app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['daily']} Бонус$"), daily_bonus))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['money']} Пригласить подруг$"), invite))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['shop']} Магазин$"), shop))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['top']} Топ подруг$"), top_friends))
+        app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['cancel']} Отмена$"), cancel_creation))
         
         app.add_handler(MessageHandler(filters.Regex("^➕ Добавить вариант$"), add_option))
         app.add_handler(MessageHandler(filters.Regex("^✅ Готово$"), finish_options))
