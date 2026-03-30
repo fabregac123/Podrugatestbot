@@ -1,26 +1,4 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 20.0 - ФИНАЛЬНАЯ
-"""
-
-import logging
-import json
-import sqlite3
-import random
-import string
-import time
-import os
-import io
-import math
-from difflib import SequenceMatcher
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
-from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters, CallbackQueryHandler
-from telegram.error import Conflict, NetworkError, TimedOut
+port Conflict, NetworkError, TimedOut
 
 # === НАСТРОЙКА TOR ПРОКСИ ===
 import socks
@@ -1559,10 +1537,7 @@ def main():
         logger.info("Бот @PodrugaTestBot успешно запущен через Tor!")
         updater.idle()
     else:
-        logger.error("Не удалось запустить бота. Проверьте:")
-        logger.error("1. Tor Browser запущен и слушает порт 9050")
-        logger.error("2. Интернет-соединение работает")
-        logger.error("3. Токен бота правильный")
+        logger.error(" бота правильный")
 
 if __name__ == "__main__":
     main()
