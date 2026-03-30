@@ -1589,8 +1589,8 @@ def main():
     try:
         timeout = httpx.Timeout(30.0, connect=30.0, read=30.0, write=30.0)
         http_client = httpx.AsyncClient(timeout=timeout)
-        
-        app = Application.builder().token(TOKEN).http_client(http_client).build()
+
+        app = Application.builder().token(TOKEN).build()
         
         app.add_handler(CommandHandler("start", start))
         
