@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 22.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 23.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -27,22 +27,22 @@ if not TOKEN:
 BOT_USERNAME = "PodrugaTestBot"
 DB_NAME = 'bot_database.db'
 START_TESTS = 1
-DAILY_BONUS_POINTS = 10  # Изменено с 5 на 10
+DAILY_BONUS_POINTS = 10
 MAX_REFERRAL_BONUS = 3
 MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
 
-# Цены на тесты (пересмотрены в пользу премиума)
+# Цены на тесты
 PRICES = {
-    'tests_5': 79,      # 15.8 ₽ за тест
-    'tests_10': 129,    # 12.9 ₽ за тест
-    'tests_20': 199,    # 9.95 ₽ за тест
-    'tests_50': 449,    # 8.98 ₽ за тест
-    'premium_month': 299,    # Премиум на месяц
-    'premium_3months': 699,  # 233 ₽/мес
-    'premium_year': 1999,    # 166.6 ₽/мес
+    'tests_5': 79,
+    'tests_10': 129,
+    'tests_20': 199,
+    'tests_50': 449,
+    'premium_month': 299,
+    'premium_3months': 699,
+    'premium_year': 1999,
     'premium_diploma': 49,
     'gold_diploma': 99,
     'frame_gold': 29,
@@ -411,7 +411,6 @@ def is_premium(user_id):
     return False
 
 def get_daily_bonus(user_id):
-    """Получение ежедневного бонуса - 10 очков, только раз в день"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -426,14 +425,12 @@ def get_daily_bonus(user_id):
             if last_bonus == today:
                 return None, streak
             
-            # Расчет серии
             yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
             if last_bonus == yesterday:
                 streak += 1
             else:
                 streak = 1
             
-            # Фиксированный бонус 10 очков
             bonus = DAILY_BONUS_POINTS
             
             c.execute('UPDATE users SET total_points = total_points + ?, last_daily = ?, daily_streak = ? WHERE user_id = ?',
@@ -892,20 +889,27 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     )
 
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка выбора группы вопросов"""
     query = update.callback_query
     await query.answer()
     
     try:
         group = query.data.split("_")[1]
+        logger.info(f"Выбрана группа: {group}")
     except IndexError:
+        logger.error(f"Ошибка: неверный формат callback_data: {query.data}")
         await query.message.reply_text("Ошибка выбора группы")
         return
     
+    # Получаем или создаем данные создания теста
     data = context.user_data.get('create_test')
     if not data:
-        data = {}
-        context.user_data['create_test'] = data
+        logger.error("Нет сессии создания теста")
+        await query.message.reply_text("Ошибка: сессия создания теста потеряна. Начните заново /start",
+                                      reply_markup=get_main_keyboard())
+        return
     
+    # Сохраняем выбранную группу
     data['group'] = group
     data['step'] = 'waiting_question_count'
     
@@ -913,12 +917,14 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
     
-    # Проверяем, доступна ли группа
+    # Получаем название группы
     group_name = PREMIUM_QUESTION_GROUPS.get(group, FREE_QUESTION_GROUPS.get(group))
     if not group_name:
-        await query.message.reply_text("Ошибка: группа не найдена")
-        return
+        group_name = "Вопросы"
     
+    logger.info(f"Переход к вводу количества вопросов для группы {group_name}")
+    
+    # Редактируем сообщение с выбором группы
     await query.message.edit_text(
         f"✨ Выбрана группа: {group_name}\n\n"
         f"📊 *Сколько вопросов будет в тесте?*\n"
@@ -938,7 +944,7 @@ async def premium_group_click(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"{MAX_QUESTIONS_PREMIUM} вопросам в тесте и другим преимуществам!\n\n"
         f"👇 Перейдите в магазин:",
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍️ Перейти в магазин", callback_data="shop")]])
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍️ Перейти в магазин", callback_data="open_shop")]])
     )
 
 async def add_option(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1167,7 +1173,6 @@ async def top_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Объединенная статистика пользователя"""
     user_id = update.effective_user.id
     user = get_user(user_id)
     if not user:
@@ -1189,7 +1194,6 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute('SELECT COUNT(*) FROM attempts WHERE friend_id = ?', (user_id,))
         tests_passed = c.fetchone()[0]
         
-        # Получаем общий рейтинг пользователя
         c.execute('SELECT COUNT(*) + 1 FROM users WHERE total_points > ?', (points,))
         rating = c.fetchone()[0]
     finally:
@@ -1263,17 +1267,20 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""{WOW_EMOJIS['money']} *ПРИГЛАСИ ПОДРУГУ* {WOW_EMOJIS['money']}
 
 🎁 *За каждую подругу ты получаешь +1 тест!*
-📌 *Максимум: {MAX_REFERRAL_BONUS} теста*
+📌 *Максимум:* {MAX_REFERRAL_BONUS} теста
 
 🔗 *Твоя ссылка:* 
-👉 `{link}` 👉
+{link}
 
-*(нажми на ссылку, чтобы скопировать)*
-
-👭 *Приглашено подруг:* {user.get('referral_count', 0)}
+👭 *Приглашено подруг:* {user.get('referral_count', 0)}/{MAX_REFERRAL_BONUS}
 
 💡 *Отправь ссылку подруге, и она получит 1 тест на старт!*
-"""
+
+✨ *Как это работает:*
+1. Подруга переходит по ссылке
+2. Начинает использовать бота
+3. Ты получаешь +1 тест (максимум {MAX_REFERRAL_BONUS})"""
+    
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1322,8 +1329,8 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💡 *СОВЕТ:* Премиум выгоднее, чем покупка тестов по отдельности!
 Если вы создаете более 10 тестов в месяц — берите премиум! 🎯
 
-💰 *Оплата:* напишите @LavaTopBot
-"""
+💰 *Оплата:* напишите @LavaTopBot"""
+    
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_shop_keyboard())
 
 async def confirm_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1369,6 +1376,12 @@ async def cancel_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"❌ Отмена",
             reply_markup=get_main_keyboard()
         )
+
+async def open_shop_from_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Открыть магазин из премиум-блокировки"""
+    query = update.callback_query
+    await query.answer()
+    await shop(update, context)
 
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1502,6 +1515,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
     
+    logger.info(f"Получен callback: {data}")
+    
     if data.startswith("group_"):
         await select_question_group(update, context)
     elif data.startswith("premium_group_"):
@@ -1522,6 +1537,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start_test(update, context)
     elif data.startswith("answer_"):
         await take_test_answer(update, context)
+    elif data == "open_shop":
+        await open_shop_from_premium(update, context)
     elif data.startswith("buy_"):
         item = data[4:]
         await query.message.reply_text(f"💎 *Покупка:* {item}\n\n💰 Оплата: напишите @LavaTopBot\n\n✨ Для активации премиума напишите @LavaTopBot с чеком", 
