@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 26.0 - РАБОЧАЯ ВЕРСИЯ
+Версия: 27.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -10,6 +10,7 @@ import json
 import sqlite3
 import random
 import os
+import httpx
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
@@ -678,7 +679,6 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Инициализируем сессию создания теста
     context.user_data['create_test'] = {
         'step': 'title',
         'questions_data': []
@@ -841,12 +841,15 @@ async def next_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question_text = questions[current_idx]
     data['current_question_text'] = question_text
     
-    await query.message.edit_text(
-        f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
-        f"❓ Что делать с этим вопросом?",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_question_keyboard()
-    )
+    try:
+        await query.message.edit_text(
+            f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
+            f"❓ Что делать с этим вопросом?",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_question_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при смене вопроса: {e}")
 
 async def select_current_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -863,13 +866,16 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     data['waiting_for_option'] = True
     logger.info(f"Начинаем сбор вариантов для вопроса {data['current_q'] + 1}")
     
-    await query.message.edit_text(
-        f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
-        f"❓ {data['current_question_text']}\n\n"
-        f"✏️ Напишите *вариант ответа №1*:",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_cancel_keyboard()
-    )
+    try:
+        await query.message.edit_text(
+            f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
+            f"❓ {data['current_question_text']}\n\n"
+            f"✏️ Напишите *вариант ответа №1*:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_cancel_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при выборе вопроса: {e}")
 
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -886,7 +892,6 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
         await query.message.reply_text("Ошибка выбора группы")
         return
     
-    # Получаем данные создания теста
     data = context.user_data.get('create_test')
     
     if not data:
@@ -899,7 +904,6 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     else:
         logger.info(f"✅ Найдена сессия создания теста. Step: {data.get('step')}, Title: {data.get('title', 'не задан')}")
     
-    # Сохраняем выбранную группу
     data['group'] = group
     data['step'] = 'waiting_question_count'
     
@@ -907,22 +911,31 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
     
-    # Получаем название группы
     group_name = PREMIUM_QUESTION_GROUPS.get(group, FREE_QUESTION_GROUPS.get(group))
     if not group_name:
         group_name = "Вопросы"
     
     logger.info(f"✅ Переход к вводу количества вопросов для группы {group_name}")
     
-    # Редактируем сообщение с выбором группы
-    await query.message.edit_text(
-        f"✨ Выбрана группа: {group_name}\n\n"
-        f"📊 *Сколько вопросов будет в тесте?*\n"
-        f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
-        f"✏️ Напишите число:",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_back_keyboard()
-    )
+    try:
+        await query.message.edit_text(
+            f"✨ Выбрана группа: {group_name}\n\n"
+            f"📊 *Сколько вопросов будет в тесте?*\n"
+            f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
+            f"✏️ Напишите число:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_back_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при редактировании сообщения: {e}")
+        await query.message.reply_text(
+            f"✨ Выбрана группа: {group_name}\n\n"
+            f"📊 *Сколько вопросов будет в тесте?*\n"
+            f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
+            f"✏️ Напишите число:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_back_keyboard()
+        )
 
 async def premium_group_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1371,18 +1384,35 @@ async def cancel_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard()
         )
 
+async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    try:
+        await query.message.edit_text(
+            "✨ Выбери *группу вопросов*:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_question_groups_keyboard(user_id)
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при возврате к группам: {e}")
+        await query.message.reply_text(
+            "✨ Выбери *группу вопросов*:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_question_groups_keyboard(user_id)
+        )
+
 async def open_shop_from_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Отправляем новое сообщение с магазином
-    await shop(update, context)
-    
-    # Удаляем предыдущее сообщение с премиум-блокировкой
     try:
         await query.message.delete()
     except:
         pass
+    
+    await shop(update, context)
 
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1480,17 +1510,6 @@ async def finish_test(query, context, data):
     text = f"{WOW_EMOJIS['crown']} *Результат:* {score:.1f}%\n\n{get_friendship_status(score)}"
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
-async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    await query.message.edit_text(
-        "✨ Выбери *группу вопросов*:",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_question_groups_keyboard(user_id)
-    )
-
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     
@@ -1553,19 +1572,25 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await open_shop_from_premium(update, context)
     elif data.startswith("buy_"):
         item = data[4:]
-        await query.message.reply_text(f"💎 *Покупка:* {item}\n\n💰 Оплата: напишите @LavaTopBot\n\n✨ Для активации премиума напишите @LavaTopBot с чеком", 
-                                       parse_mode=ParseMode.MARKDOWN)
+        await query.message.reply_text(
+            f"💎 *Покупка:* {item}\n\n"
+            f"💰 Оплата: напишите @LavaTopBot\n\n"
+            f"✨ Для активации премиума напишите @LavaTopBot с чеком", 
+            parse_mode=ParseMode.MARKDOWN
+        )
     elif data == "shop":
         await shop(update, context)
     else:
         logger.warning(f"Неизвестный callback: {data}")
-        await query.answer()
     
     await query.answer()
 
 def main():
     try:
-        app = Application.builder().token(TOKEN).build()
+        timeout = httpx.Timeout(30.0, connect=30.0, read=30.0, write=30.0)
+        http_client = httpx.AsyncClient(timeout=timeout)
+        
+        app = Application.builder().token(TOKEN).http_client(http_client).build()
         
         app.add_handler(CommandHandler("start", start))
         
