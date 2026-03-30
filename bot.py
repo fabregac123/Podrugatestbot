@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 23.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 24.0 - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -33,22 +33,6 @@ MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
-
-# Цены на тесты
-PRICES = {
-    'tests_5': 79,
-    'tests_10': 129,
-    'tests_20': 199,
-    'tests_50': 449,
-    'premium_month': 299,
-    'premium_3months': 699,
-    'premium_year': 1999,
-    'premium_diploma': 49,
-    'gold_diploma': 99,
-    'frame_gold': 29,
-    'frame_diamond': 49,
-    'frame_royal': 99
-}
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -539,9 +523,6 @@ def get_friendship_status(score):
     if score >= 15: return "🤨 СЛУЧАЙНЫЕ ПРОХОЖИЕ"
     return "😱 КТО ВЫ ТАКИЕ?"
 
-def get_bot_link():
-    return f"https://t.me/{BOT_USERNAME}"
-
 # === КЛАВИАТУРЫ ===
 def get_main_keyboard():
     keyboard = [
@@ -637,7 +618,7 @@ def get_start_test_keyboard(test_id):
         InlineKeyboardButton("🎮 Начать тест", callback_data=f"start_test_{test_id}")
     ]])
 
-# === ХЕНДЛЕРЫ ===
+# === ОСНОВНЫЕ ХЕНДЛЕРЫ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     referred_by = None
@@ -697,10 +678,13 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # Инициализируем сессию создания теста
     context.user_data['create_test'] = {
         'step': 'title',
         'questions_data': []
     }
+    logger.info(f"✅ Создана новая сессия создания теста для {user_id}")
+    
     await update.message.reply_text(
         f"{WOW_EMOJIS['test']} *Создаем тест!*\n\n"
         f"📦 *Доступно тестов:* {available}\n\n"
@@ -712,23 +696,14 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'create_test' in context.user_data:
+        logger.info(f"❌ Отмена создания теста пользователем {update.effective_user.id}")
         del context.user_data['create_test']
     await update.message.reply_text("❌ Создание теста отменено.", reply_markup=get_main_keyboard())
-
-async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    await query.message.edit_text(
-        "✨ Выбери *группу вопросов*:",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_question_groups_keyboard(user_id)
-    )
 
 async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('create_test')
     if not data:
+        logger.warning("handle_create_test: нет данных create_test")
         return
     
     text = update.message.text
@@ -752,6 +727,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     step = data.get('step')
+    logger.info(f"handle_create_test: step={step}, text={text[:50]}")
     
     if step == 'title':
         if len(text.strip()) < 3:
@@ -759,6 +735,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
         data['title'] = text.strip()
         data['step'] = 'group'
+        logger.info(f"✅ Сохранено название теста: {data['title']}")
         
         user_id = update.effective_user.id
         await update.message.reply_text(
@@ -786,6 +763,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             data['step'] = 'selecting_question'
             
             group = data.get('group')
+            logger.info(f"Группа для вопросов: {group}")
             data['group_questions'] = QUESTIONS_BY_GROUP.get(group, []).copy()
             random.shuffle(data['group_questions'])
             data['current_question_index'] = 0
@@ -797,6 +775,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return
             
+            logger.info(f"✅ Начинаем создание вопросов. Всего: {count}")
             await show_current_question(update, context)
         except ValueError:
             await update.message.reply_text("⚠️ Пожалуйста, напишите число (например: 5):")
@@ -810,6 +789,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     return
                 data['current_options'].append(option_text)
                 data['waiting_for_option'] = False
+                logger.info(f"Добавлен вариант {len(data['current_options'])}: {option_text[:30]}")
                 
                 await update.message.reply_text(
                     f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n"
@@ -821,6 +801,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def show_current_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('create_test')
     if not data:
+        logger.error("show_current_question: нет данных create_test")
         return
     
     current_idx = data.get('current_question_index', 0)
@@ -832,6 +813,7 @@ async def show_current_question(update: Update, context: ContextTypes.DEFAULT_TY
     
     question_text = questions[current_idx]
     data['current_question_text'] = question_text
+    logger.info(f"Показываем вопрос {data['current_q'] + 1}/{data['total_q']}: {question_text[:50]}")
     
     await update.message.reply_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
@@ -879,6 +861,7 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     data['step'] = 'collecting_options'
     data['current_options'] = []
     data['waiting_for_option'] = True
+    logger.info(f"Начинаем сбор вариантов для вопроса {data['current_q'] + 1}")
     
     await query.message.edit_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
@@ -893,21 +876,29 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     
+    logger.info(f"=== select_question_group вызвана ===")
+    logger.info(f"Callback data: {query.data}")
+    
     try:
         group = query.data.split("_")[1]
-        logger.info(f"Выбрана группа: {group}")
+        logger.info(f"✅ Выбрана группа: {group}")
     except IndexError:
         logger.error(f"Ошибка: неверный формат callback_data: {query.data}")
         await query.message.reply_text("Ошибка выбора группы")
         return
     
-    # Получаем или создаем данные создания теста
+    # Получаем данные создания теста
     data = context.user_data.get('create_test')
+    
     if not data:
-        logger.error("Нет сессии создания теста")
-        await query.message.reply_text("Ошибка: сессия создания теста потеряна. Начните заново /start",
-                                      reply_markup=get_main_keyboard())
-        return
+        logger.error("❌ Нет сессии создания теста! Создаем новую...")
+        data = {
+            'step': 'group',
+            'questions_data': []
+        }
+        context.user_data['create_test'] = data
+    else:
+        logger.info(f"✅ Найдена сессия создания теста. Step: {data.get('step')}, Title: {data.get('title', 'не задан')}")
     
     # Сохраняем выбранную группу
     data['group'] = group
@@ -922,7 +913,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     if not group_name:
         group_name = "Вопросы"
     
-    logger.info(f"Переход к вводу количества вопросов для группы {group_name}")
+    logger.info(f"✅ Переход к вводу количества вопросов для группы {group_name}")
     
     # Редактируем сообщение с выбором группы
     await query.message.edit_text(
@@ -1041,6 +1032,8 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     data['step'] = 'selecting_question'
     data['current_question_index'] = (data.get('current_question_index', 0) + 1) % len(data.get('group_questions', [1]))
     
+    logger.info(f"✅ Сохранен вопрос {data['current_q']}/{data['total_q']}")
+    
     await query.message.reply_text(
         f"✅ *Вопрос {data['current_q']}/{data['total_q']} сохранен!*\n\n"
         f"Правильный ответ: {options[correct_idx]}",
@@ -1103,7 +1096,9 @@ async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, us
                                        reply_markup=get_main_keyboard())
     
     del context.user_data['create_test']
+    logger.info(f"✅ Тест {test_id} создан пользователем {user_id}")
 
+# === ОСТАЛЬНЫЕ ХЕНДЛЕРЫ ===
 async def my_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     tests = get_user_tests(user_id)
@@ -1378,7 +1373,6 @@ async def cancel_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def open_shop_from_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Открыть магазин из премиум-блокировки"""
     query = update.callback_query
     await query.answer()
     await shop(update, context)
@@ -1515,7 +1509,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
     
-    logger.info(f"Получен callback: {data}")
+    logger.info(f"📨 Получен callback: {data}")
     
     if data.startswith("group_"):
         await select_question_group(update, context)
@@ -1546,6 +1540,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "shop":
         await shop(update, context)
     else:
+        logger.warning(f"Неизвестный callback: {data}")
         await query.answer()
     
     await query.answer()
@@ -1574,7 +1569,7 @@ def main():
         
         app.add_handler(CallbackQueryHandler(callback_handler))
         
-        logger.info("🚀 Бот запущен!")
+        logger.info("🚀 Бот успешно запущен!")
         app.run_polling()
         
     except Exception as e:
