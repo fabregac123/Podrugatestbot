@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 24.0 - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 25.0 - РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -1472,6 +1472,17 @@ async def finish_test(query, context, data):
     
     text = f"{WOW_EMOJIS['crown']} *Результат:* {score:.1f}%\n\n{get_friendship_status(score)}"
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+
+async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    await query.message.edit_text(
+        "✨ Выбери *группу вопросов*:",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_question_groups_keyboard(user_id)
+    )
 
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
