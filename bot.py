@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 21.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 22.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -27,12 +27,28 @@ if not TOKEN:
 BOT_USERNAME = "PodrugaTestBot"
 DB_NAME = 'bot_database.db'
 START_TESTS = 1
-DAILY_BONUS_POINTS = 5
+DAILY_BONUS_POINTS = 10  # Изменено с 5 на 10
 MAX_REFERRAL_BONUS = 3
 MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
+
+# Цены на тесты (пересмотрены в пользу премиума)
+PRICES = {
+    'tests_5': 79,      # 15.8 ₽ за тест
+    'tests_10': 129,    # 12.9 ₽ за тест
+    'tests_20': 199,    # 9.95 ₽ за тест
+    'tests_50': 449,    # 8.98 ₽ за тест
+    'premium_month': 299,    # Премиум на месяц
+    'premium_3months': 699,  # 233 ₽/мес
+    'premium_year': 1999,    # 166.6 ₽/мес
+    'premium_diploma': 49,
+    'gold_diploma': 99,
+    'frame_gold': 29,
+    'frame_diamond': 49,
+    'frame_royal': 99
+}
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -176,14 +192,13 @@ RANKS = [
 WOW_EMOJIS = {
     'start': '✨', 'success': '🎉', 'error': '❌',
     'test': '📝', 'friend': '👯', 'crown': '👑',
-    'star': '⭐', 'heart': '💖', 'daily': '📅',
-    'achievement': '🏅', 'shop': '🛍️', 'money': '💰',
-    'top': '🏆', 'back': '🔙'
+    'star': '⭐', 'heart': '💖', 'daily': '🎁',
+    'achievement': '🏆', 'shop': '🛍️', 'money': '💰',
+    'top': '🏆', 'back': '🔙', 'stats': '📊'
 }
 
-# === БАЗА ДАННЫХ С УЛУЧШЕННОЙ ОБРАБОТКОЙ ОШИБОК ===
+# === БАЗА ДАННЫХ ===
 def get_db():
-    """Получение соединения с БД с таймаутом"""
     try:
         conn = sqlite3.connect(DB_NAME, timeout=30)
         conn.row_factory = sqlite3.Row
@@ -192,18 +207,7 @@ def get_db():
         logger.error(f"Ошибка подключения к БД: {e}")
         raise
 
-def safe_db_operation(func):
-    """Декоратор для безопасной работы с БД"""
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            logger.error(f"Ошибка в {func.__name__}: {e}")
-            return None
-    return wrapper
-
 def init_db():
-    """Инициализация базы данных"""
     conn = None
     try:
         conn = get_db()
@@ -282,10 +286,8 @@ def init_db():
 
 init_db()
 
-# === ФУНКЦИИ БАЗЫ ДАННЫХ С УЛУЧШЕННОЙ ОБРАБОТКОЙ ===
-@safe_db_operation
+# === ФУНКЦИИ БАЗЫ ДАННЫХ ===
 def get_user(user_id):
-    """Получение пользователя из БД"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -295,9 +297,7 @@ def get_user(user_id):
     finally:
         conn.close()
 
-@safe_db_operation
 def create_user(user_id, username=None, first_name=None, referred_by=None):
-    """Создание нового пользователя"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -319,9 +319,7 @@ def create_user(user_id, username=None, first_name=None, referred_by=None):
     finally:
         conn.close()
 
-@safe_db_operation
 def update_user(user_id, username=None, first_name=None):
-    """Обновление данных пользователя"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -334,9 +332,7 @@ def update_user(user_id, username=None, first_name=None):
     finally:
         conn.close()
 
-@safe_db_operation
 def add_tests(user_id, count):
-    """Добавление тестов пользователю"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -348,56 +344,42 @@ def add_tests(user_id, count):
         conn.close()
 
 def use_test(user_id):
-    """Использование одного теста (с проверкой безлимита)"""
     user = get_user(user_id)
     
-    # Проверка безлимита
     if user and user.get('unlimited_until'):
         try:
             unlimited_until = datetime.fromisoformat(user['unlimited_until'])
             if unlimited_until > datetime.now():
-                logger.info(f"Пользователь {user_id} использует безлимит")
-                return True  # Безлимит - тест не списывается
-        except (ValueError, TypeError) as e:
-            logger.error(f"Ошибка проверки безлимита для {user_id}: {e}")
+                return True
+        except (ValueError, TypeError):
+            pass
     
-    # Списание теста
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute('UPDATE users SET tests_available = tests_available - 1 WHERE user_id = ? AND tests_available > 0', 
                  (user_id,))
         conn.commit()
-        success = c.rowcount > 0
-        if success:
-            logger.info(f"У пользователя {user_id} списан тест")
-        else:
-            logger.warning(f"У пользователя {user_id} недостаточно тестов")
-        return success
+        return c.rowcount > 0
     finally:
         conn.close()
 
-@safe_db_operation
 def get_available_tests(user_id):
-    """Получение доступного количества тестов"""
     user = get_user(user_id)
     if not user:
         return START_TESTS
     
-    # Проверка безлимита
     if user.get('unlimited_until'):
         try:
             unlimited_until = datetime.fromisoformat(user['unlimited_until'])
             if unlimited_until > datetime.now():
-                return 999  # Безлимит
+                return 999
         except (ValueError, TypeError):
             pass
     
     return user.get('tests_available', START_TESTS)
 
-@safe_db_operation
 def add_points(user_id, points):
-    """Добавление очков пользователю"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -409,14 +391,12 @@ def add_points(user_id, points):
         conn.close()
 
 def get_rank(score):
-    """Получение ранга по количеству очков"""
     for rank in reversed(RANKS):
         if score >= rank['min_score']:
             return rank
     return RANKS[0]
 
 def is_premium(user_id):
-    """Проверка премиум-статуса"""
     user = get_user(user_id)
     if not user:
         return False
@@ -431,7 +411,7 @@ def is_premium(user_id):
     return False
 
 def get_daily_bonus(user_id):
-    """Получение ежедневного бонуса (с исправленным расчетом)"""
+    """Получение ежедневного бонуса - 10 очков, только раз в день"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -453,14 +433,8 @@ def get_daily_bonus(user_id):
             else:
                 streak = 1
             
-            # Расчет бонуса (базовый + бонус за серию)
+            # Фиксированный бонус 10 очков
             bonus = DAILY_BONUS_POINTS
-            if streak == 7:
-                bonus += 10  # Всего 15
-            elif streak == 30:
-                bonus += 45  # Всего 50
-            elif streak == 100:
-                bonus += 95  # Всего 100
             
             c.execute('UPDATE users SET total_points = total_points + ?, last_daily = ?, daily_streak = ? WHERE user_id = ?',
                       (bonus, today, streak, user_id))
@@ -474,10 +448,8 @@ def get_daily_bonus(user_id):
     finally:
         conn.close()
 
-@safe_db_operation
 def create_test(creator_id, creator_name, creator_username, title, questions, options, correct_answers, 
                 greeting_type=None, greeting_file_id=None):
-    """Создание теста"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -489,7 +461,6 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         test_id = c.lastrowid
         c.execute('UPDATE users SET tests_created = tests_created + 1 WHERE user_id = ?', (creator_id,))
         conn.commit()
-        logger.info(f"Создан тест {test_id} пользователем {creator_id}")
         return test_id
     except Exception as e:
         logger.error(f"Ошибка создания теста: {e}")
@@ -497,9 +468,7 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
     finally:
         conn.close()
 
-@safe_db_operation
 def get_test_by_id(test_id):
-    """Получение теста по ID"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -511,8 +480,7 @@ def get_test_by_id(test_id):
                 test['questions'] = json.loads(test['questions']) if test['questions'] else []
                 test['options'] = json.loads(test['options']) if test['options'] else []
                 test['correct_answers'] = json.loads(test['correct_answers']) if test['correct_answers'] else []
-            except json.JSONDecodeError as e:
-                logger.error(f"Ошибка парсинга JSON для теста {test_id}: {e}")
+            except json.JSONDecodeError:
                 test['questions'] = []
                 test['options'] = []
                 test['correct_answers'] = []
@@ -521,9 +489,7 @@ def get_test_by_id(test_id):
     finally:
         conn.close()
 
-@safe_db_operation
 def get_user_tests(user_id):
-    """Получение всех тестов пользователя"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -534,9 +500,7 @@ def get_user_tests(user_id):
     finally:
         conn.close()
 
-@safe_db_operation
 def can_attempt_test(test_id, friend_id):
-    """Проверка, может ли пользователь пройти тест"""
     test = get_test_by_id(test_id)
     if not test or test['creator_id'] == friend_id:
         return False
@@ -550,9 +514,7 @@ def can_attempt_test(test_id, friend_id):
     finally:
         conn.close()
 
-@safe_db_operation
 def save_attempt(test_id, friend_id, friend_name, friend_username, answers, score):
-    """Сохранение попытки прохождения теста"""
     conn = get_db()
     try:
         c = conn.cursor()
@@ -569,7 +531,6 @@ def save_attempt(test_id, friend_id, friend_name, friend_username, answers, scor
         conn.close()
 
 def get_friendship_status(score):
-    """Получение статуса дружбы по проценту"""
     if score >= 95: return "👑 АБСОЛЮТНЫЕ БЛИЗНЕЦЫ"
     if score >= 85: return "💎 ЛУЧШИЕ ПОДРУГИ НАВЕК"
     if score >= 75: return "🌟 НАСТОЯЩИЕ ПОДРУГИ"
@@ -588,9 +549,9 @@ def get_bot_link():
 def get_main_keyboard():
     keyboard = [
         [KeyboardButton(f"{WOW_EMOJIS['test']} Создать тест"), KeyboardButton(f"{WOW_EMOJIS['crown']} Мои тесты")],
-        [KeyboardButton(f"{WOW_EMOJIS['achievement']} Мои ачивки"), KeyboardButton(f"{WOW_EMOJIS['daily']} Ежедневный бонус")],
+        [KeyboardButton(f"{WOW_EMOJIS['stats']} Моя статистика"), KeyboardButton(f"{WOW_EMOJIS['daily']} Ежедневный бонус")],
         [KeyboardButton(f"{WOW_EMOJIS['money']} Пригласить подруг"), KeyboardButton(f"{WOW_EMOJIS['shop']} Магазин")],
-        [KeyboardButton("📊 Статистика"), KeyboardButton("📋 Топ подруг")]
+        [KeyboardButton(f"{WOW_EMOJIS['top']} Топ подруг")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -614,12 +575,10 @@ def get_options_keyboard():
     )
 
 def get_question_groups_keyboard(user_id):
-    """Клавиатура выбора группы вопросов (без дублирования)"""
     has_premium = is_premium(user_id)
     keyboard = []
     row = []
     
-    # Бесплатные группы
     for key, name in FREE_QUESTION_GROUPS.items():
         row.append(InlineKeyboardButton(name, callback_data=f"group_{key}"))
         if len(row) == 2:
@@ -628,7 +587,6 @@ def get_question_groups_keyboard(user_id):
     if row:
         keyboard.append(row)
     
-    # Премиум группы
     if has_premium:
         row = []
         for key, name in PREMIUM_QUESTION_GROUPS.items():
@@ -654,23 +612,22 @@ def get_question_groups_keyboard(user_id):
 
 def get_shop_keyboard():
     keyboard = [
-        [InlineKeyboardButton("📦 5 тестов — 99 ₽", callback_data="buy_tests_5"), 
-         InlineKeyboardButton("📦 10 тестов — 149 ₽", callback_data="buy_tests_10")],
-        [InlineKeyboardButton("📦 20 тестов — 249 ₽", callback_data="buy_tests_20"), 
-         InlineKeyboardButton("📦 50 тестов — 499 ₽", callback_data="buy_tests_50")],
-        [InlineKeyboardButton("💎 Премиум-диплом — 49 ₽", callback_data="buy_premium_diploma"), 
-         InlineKeyboardButton("🥇 Золотой диплом — 99 ₽", callback_data="buy_gold_diploma")],
-        [InlineKeyboardButton("🖼️ Золотая рамка — 29 ₽", callback_data="buy_frame_gold"), 
-         InlineKeyboardButton("🖼️ Алмазная рамка — 49 ₽", callback_data="buy_frame_diamond")],
-        [InlineKeyboardButton("👑 Королевская рамка — 99 ₽", callback_data="buy_frame_royal"), 
-         InlineKeyboardButton("♾️ Безлимит (месяц) — 199 ₽", callback_data="buy_unlimited_month")],
-        [InlineKeyboardButton("♾️ 3 месяца безлимита — 499 ₽", callback_data="buy_unlimited_3months"), 
-         InlineKeyboardButton("♾️ Год безлимита — 1499 ₽", callback_data="buy_unlimited_year")]
+        [InlineKeyboardButton("📦 5 тестов — 79 ₽", callback_data="buy_tests_5"), 
+         InlineKeyboardButton("📦 10 тестов — 129 ₽", callback_data="buy_tests_10")],
+        [InlineKeyboardButton("📦 20 тестов — 199 ₽", callback_data="buy_tests_20"), 
+         InlineKeyboardButton("📦 50 тестов — 449 ₽", callback_data="buy_tests_50")],
+        [InlineKeyboardButton("💎 Премиум 30 дней — 299 ₽", callback_data="buy_premium_month"), 
+         InlineKeyboardButton("💎 Премиум 3 мес — 699 ₽", callback_data="buy_premium_3months")],
+        [InlineKeyboardButton("💎 Премиум ГОД — 1999 ₽", callback_data="buy_premium_year"),
+         InlineKeyboardButton("✨ Премиум-диплом — 49 ₽", callback_data="buy_premium_diploma")],
+        [InlineKeyboardButton("🥇 Золотой диплом — 99 ₽", callback_data="buy_gold_diploma"),
+         InlineKeyboardButton("🖼️ Золотая рамка — 29 ₽", callback_data="buy_frame_gold")],
+        [InlineKeyboardButton("🖼️ Алмазная рамка — 49 ₽", callback_data="buy_frame_diamond"),
+         InlineKeyboardButton("👑 Королевская рамка — 99 ₽", callback_data="buy_frame_royal")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 def get_share_confirm_keyboard(test_id):
-    """Клавиатура подтверждения отправки теста"""
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Да, отправить", callback_data=f"confirm_share_{test_id}"),
          InlineKeyboardButton("❌ Нет, отмена", callback_data="cancel_share")],
@@ -679,7 +636,6 @@ def get_share_confirm_keyboard(test_id):
     ])
 
 def get_start_test_keyboard(test_id):
-    """Клавиатура для начала теста"""
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("🎮 Начать тест", callback_data=f"start_test_{test_id}")
     ]])
@@ -763,7 +719,6 @@ async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Создание теста отменено.", reply_markup=get_main_keyboard())
 
 async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Возврат к выбору группы вопросов"""
     query = update.callback_query
     await query.answer()
     
@@ -786,7 +741,6 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     if text == f"{WOW_EMOJIS['back']} Назад":
-        # Возврат к предыдущему шагу
         if data.get('step') == 'waiting_question_count':
             data['step'] = 'group'
             user_id = update.effective_user.id
@@ -796,7 +750,6 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 reply_markup=get_question_groups_keyboard(user_id)
             )
         elif data.get('step') == 'collecting_options':
-            # Возврат к выбору вопроса
             data['step'] = 'selecting_question'
             await show_current_question(update, context)
         return
@@ -840,7 +793,6 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             random.shuffle(data['group_questions'])
             data['current_question_index'] = 0
             
-            # Проверка, что вопросов достаточно
             if len(data['group_questions']) < count:
                 await update.message.reply_text(
                     f"⚠️ В выбранной группе недостаточно вопросов. Выберите другую группу или уменьшите количество вопросов до {len(data['group_questions'])}.",
@@ -856,6 +808,9 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if data.get('waiting_for_option'):
             option_text = text.strip()
             if option_text:
+                if len(option_text) > 100:
+                    await update.message.reply_text("⚠️ Вариант ответа слишком длинный (максимум 100 символов):")
+                    return
                 data['current_options'].append(option_text)
                 data['waiting_for_option'] = False
                 
@@ -867,7 +822,6 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
 
 async def show_current_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать текущий вопрос"""
     data = context.user_data.get('create_test')
     if not data:
         return
@@ -959,8 +913,14 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
     
+    # Проверяем, доступна ли группа
+    group_name = PREMIUM_QUESTION_GROUPS.get(group, FREE_QUESTION_GROUPS.get(group))
+    if not group_name:
+        await query.message.reply_text("Ошибка: группа не найдена")
+        return
+    
     await query.message.edit_text(
-        f"✨ Выбрана группа: {PREMIUM_QUESTION_GROUPS.get(group, FREE_QUESTION_GROUPS.get(group, 'Вопросы'))}\n\n"
+        f"✨ Выбрана группа: {group_name}\n\n"
         f"📊 *Сколько вопросов будет в тесте?*\n"
         f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
         f"✏️ Напишите число:",
@@ -1004,7 +964,6 @@ async def add_option(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def back_to_questions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Возврат к выбору вопроса"""
     data = context.user_data.get('create_test')
     if not data:
         return
@@ -1088,7 +1047,6 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
         await finish_creation(update, context, query.from_user.id)
 
 async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id):
-    """Завершение создания теста"""
     data = context.user_data.get('create_test', {})
     if not data:
         return
@@ -1114,7 +1072,6 @@ async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, us
     )
     
     if test_id:
-        # Списываем тест только если подтвердили отправку
         context.user_data['pending_test'] = {
             'test_id': test_id,
             'title': data['title'],
@@ -1195,11 +1152,11 @@ async def top_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
         avg = friend['avg_score']
         
         if i == 1:
-            medal = "👑"
+            medal = "🥇"
         elif i == 2:
-            medal = "💎"
+            medal = "🥈"
         elif i == 3:
-            medal = "🌟"
+            medal = "🥉"
         else:
             medal = "💕"
         
@@ -1209,7 +1166,8 @@ async def top_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
-async def achievements_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Объединенная статистика пользователя"""
     user_id = update.effective_user.id
     user = get_user(user_id)
     if not user:
@@ -1221,32 +1179,54 @@ async def achievements_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     streak = user.get('daily_streak', 0)
     created = user.get('tests_created', 0)
     referrals = user.get('referral_count', 0)
+    tests_left = get_available_tests(user_id)
     has_premium = is_premium(user_id)
+    max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
     
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute('SELECT COUNT(*) FROM attempts WHERE friend_id = ?', (user_id,))
         tests_passed = c.fetchone()[0]
+        
+        # Получаем общий рейтинг пользователя
+        c.execute('SELECT COUNT(*) + 1 FROM users WHERE total_points > ?', (points,))
+        rating = c.fetchone()[0]
     finally:
         conn.close()
     
-    text = f"""{WOW_EMOJIS['achievement']} *ТВОИ ДОСТИЖЕНИЯ* {WOW_EMOJIS['achievement']}
+    unlimited_text = ""
+    if has_premium:
+        unlimited_until = user['unlimited_until']
+        if unlimited_until:
+            try:
+                unlimited_until = datetime.fromisoformat(unlimited_until)
+                if unlimited_until > datetime.now():
+                    unlimited_text = f"\n♾️ *Безлимит до:* {unlimited_until.strftime('%d.%m.%Y')}"
+            except (ValueError, TypeError):
+                pass
+    
+    text = f"""{WOW_EMOJIS['stats']} *СТАТИСТИКА ПРОФИЛЯ* {WOW_EMOJIS['stats']}
 
+👤 *Имя:* {user.get('first_name', 'Подруга')}
 🏆 *Ранг:* {rank['name']}
 ⭐ *Очки:* {points}
+📊 *Место в рейтинге:* {rating}
 🔥 *Серия дней:* {streak}
 
 📝 *Создано тестов:* {created}
 🎯 *Пройдено тестов:* {tests_passed}
-👭 *Приглашено подруг:* {referrals}
-💎 *Премиум статус:* {'Да' if has_premium else 'Нет'}
+👭 *Приглашено подруг:* {referrals}/{MAX_REFERRAL_BONUS}
 
-🎯 *Следующие ранги:*
+📦 *Тестов доступно:* {tests_left}
+🔢 *Максимум вопросов:* {max_q}{unlimited_text}
+
+✨ *До следующего ранга:*
 """
     for r in RANKS:
         if r['min_score'] > points:
-            text += f"• {r['name']} — нужно {r['min_score'] - points} очков\n"
+            need = r['min_score'] - points
+            text += f"• {r['name']} — нужно {need} очков\n"
             break
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
@@ -1255,17 +1235,19 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     result = get_daily_bonus(user_id)
     
-    if result is None:
+    if result[0] is None:
         await update.message.reply_text(
-            f"{WOW_EMOJIS['daily']} Ты уже получала бонус сегодня!\n"
-            f"🔥 Серия: {result[1] if result else 0} дней\n"
+            f"{WOW_EMOJIS['daily']} 🎁 *Ежедневный бонус*\n\n"
+            f"Ты уже получала бонус сегодня!\n"
+            f"🔥 Серия: {result[1]} дней\n"
             f"⏰ Возвращайся завтра!",
+            parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_main_keyboard()
         )
         return
     
     bonus, streak = result
-    text = f"{WOW_EMOJIS['daily']} *ЕЖЕДНЕВНЫЙ БОНУС!*\n\n+{bonus} очков!\n🔥 Серия: {streak} дней!"
+    text = f"{WOW_EMOJIS['daily']} 🎁 *ЕЖЕДНЕВНЫЙ БОНУС!*\n\n✨ *+{bonus} очков!*\n🔥 *Серия:* {streak} дней\n\n💫 Приходи завтра снова!"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1284,7 +1266,7 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📌 *Максимум: {MAX_REFERRAL_BONUS} теста*
 
 🔗 *Твоя ссылка:* 
-👉 `{link}` 👈
+👉 `{link}` 👉
 
 *(нажми на ссылку, чтобы скопировать)*
 
@@ -1303,98 +1285,48 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     points = user.get('total_points', 0)
     rank = get_rank(points)
-    has_premium = is_premium(update.effective_user.id)
+    has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
     
     text = f"""{WOW_EMOJIS['shop']} *МАГАЗИН* {WOW_EMOJIS['shop']}
 
 👑 *Ранг:* {rank['name']}
 ⭐ *Очки:* {points}
-📦 *Тестов доступно:* {get_available_tests(update.effective_user.id)}
+📦 *Тестов доступно:* {get_available_tests(user_id)}
 🔢 *Вопросов в тесте:* до {max_q}
 
-📦 *Пакеты тестов:*
-• 5 тестов — 99 ₽
-• 10 тестов — 149 ₽
-• 20 тестов — 249 ₽
-• 50 тестов — 499 ₽
+📦 *ПАКЕТЫ ТЕСТОВ:*
+• 5 тестов — 79 ₽ (15.8 ₽/тест)
+• 10 тестов — 129 ₽ (12.9 ₽/тест)
+• 20 тестов — 199 ₽ (9.95 ₽/тест)
+• 50 тестов — 449 ₽ (8.98 ₽/тест)
 
-✨ *Дипломы и рамки:*
+💎 *ПРЕМИУМ ПОДПИСКА:*
+• 30 дней — 299 ₽ (10 ₽/день)
+• 3 месяца — 699 ₽ (7.7 ₽/день)
+• ГОД — 1999 ₽ (5.5 ₽/день)
+
+✨ *Преимущества премиума:*
+✅ Неограниченные тесты
+✅ До {MAX_QUESTIONS_PREMIUM} вопросов
+✅ 10 групп вопросов
+✅ Эксклюзивные рамки
+
+🎨 *ДИПЛОМЫ И РАМКИ:*
 • Премиум-диплом — 49 ₽
 • Золотой диплом — 99 ₽
-• Алмазный диплом — 199 ₽
 • Золотая рамка — 29 ₽
 • Алмазная рамка — 49 ₽
 • Королевская рамка — 99 ₽
 
-♾️ *Безлимит:*
-• Месяц — 199 ₽
-• 3 месяца — 499 ₽
-• Год — 1499 ₽
-
-💎 *Преимущества безлимита:*
-• Неограниченные тесты
-• До {MAX_QUESTIONS_PREMIUM} вопросов в тесте
-• 10 групп вопросов
-• Эксклюзивные рамки
+💡 *СОВЕТ:* Премиум выгоднее, чем покупка тестов по отдельности!
+Если вы создаете более 10 тестов в месяц — берите премиум! 🎯
 
 💰 *Оплата:* напишите @LavaTopBot
 """
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_shop_keyboard())
 
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user = get_user(user_id)
-    if not user:
-        await update.message.reply_text("❌ Ошибка. Попробуйте позже.", reply_markup=get_main_keyboard())
-        return
-    
-    points = user.get('total_points', 0)
-    rank = get_rank(points)
-    streak = user.get('daily_streak', 0)
-    created = user.get('tests_created', 0)
-    referrals = user.get('referral_count', 0)
-    tests_left = get_available_tests(update.effective_user.id)
-    has_premium = is_premium(update.effective_user.id)
-    max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
-    
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM attempts WHERE friend_id = ?', (user_id,))
-        tests_passed = c.fetchone()[0]
-    finally:
-        conn.close()
-    
-    unlimited_text = ""
-    if has_premium:
-        unlimited_until = user['unlimited_until']
-        if unlimited_until:
-            try:
-                unlimited_until = datetime.fromisoformat(unlimited_until)
-                if unlimited_until > datetime.now():
-                    unlimited_text = f"\n♾️ *Безлимит до:* {unlimited_until.strftime('%d.%m.%Y')}"
-            except (ValueError, TypeError):
-                pass
-    
-    text = f"""{WOW_EMOJIS['star']} *ТВОЯ СТАТИСТИКА* {WOW_EMOJIS['star']}
-
-👤 *Имя:* {user.get('first_name', 'Подруга')}
-🏆 *Ранг:* {rank['name']}
-⭐ *Очки:* {points}
-🔥 *Серия дней:* {streak}
-
-📝 *Создано тестов:* {created}
-🎯 *Пройдено тестов:* {tests_passed}
-👭 *Приглашено подруг:* {referrals}
-
-📦 *Тестов доступно:* {tests_left}
-🔢 *Максимум вопросов:* {max_q}{unlimited_text}
-"""
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
-
 async def confirm_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Подтверждение отправки теста и списание теста"""
     query = update.callback_query
     await query.answer()
     
@@ -1406,7 +1338,6 @@ async def confirm_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user_id = query.from_user.id
     
-    # Списание теста только после подтверждения
     if use_test(user_id):
         await query.message.reply_text(
             f"{WOW_EMOJIS['success']} *Тест готов к отправке!*\n\n"
@@ -1420,19 +1351,14 @@ async def confirm_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard()
         )
     
-    # Очищаем pending_test
     if 'pending_test' in context.user_data:
         del context.user_data['pending_test']
 
 async def cancel_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отмена отправки теста"""
     query = update.callback_query
     await query.answer()
     
-    # Удаляем созданный тест, если он не был отправлен
     if 'pending_test' in context.user_data:
-        pending = context.user_data['pending_test']
-        # Здесь можно добавить логику удаления теста
         del context.user_data['pending_test']
         await query.message.reply_text(
             f"❌ Отправка теста отменена. Тест не был списан.",
@@ -1449,7 +1375,6 @@ async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     try:
-        # Исправление: правильное извлечение test_id
         test_id = int(query.data.split("_")[2])
     except (IndexError, ValueError) as e:
         logger.error(f"Ошибка извлечения test_id из {query.data}: {e}")
@@ -1482,7 +1407,6 @@ async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_question(query, context, test['questions'][0], test['options'][0], 1, len(test['questions']))
 
 async def send_question(query, context, question, options, current, total):
-    """Отправка вопроса"""
     text = f"{WOW_EMOJIS['star']} *Вопрос {current}/{total}* {WOW_EMOJIS['star']}\n\n📝 {question}"
     
     keyboard = []
@@ -1526,7 +1450,6 @@ async def take_test_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data['taking_test']
 
 async def finish_test(query, context, data):
-    """Завершение теста"""
     test = data['test']
     answers = data['answers']
     correct_answers = data['correct_answers']
@@ -1544,24 +1467,21 @@ async def finish_test(query, context, data):
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка текстовых кнопок"""
     text = update.message.text
     
     if text == f"{WOW_EMOJIS['test']} Создать тест":
         await create_test_start(update, context)
     elif text == f"{WOW_EMOJIS['crown']} Мои тесты":
         await my_tests(update, context)
-    elif text == f"{WOW_EMOJIS['achievement']} Мои ачивки":
-        await achievements_list(update, context)
+    elif text == f"{WOW_EMOJIS['stats']} Моя статистика":
+        await my_stats(update, context)
     elif text == f"{WOW_EMOJIS['daily']} Ежедневный бонус":
         await daily_bonus(update, context)
     elif text == f"{WOW_EMOJIS['money']} Пригласить подруг":
         await invite(update, context)
     elif text == f"{WOW_EMOJIS['shop']} Магазин":
         await shop(update, context)
-    elif text == "📊 Статистика":
-        await stats(update, context)
-    elif text == "📋 Топ подруг":
+    elif text == f"{WOW_EMOJIS['top']} Топ подруг":
         await top_friends(update, context)
     elif text == "➕ Добавить вариант":
         await add_option(update, context)
@@ -1579,7 +1499,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Используй кнопки меню!", reply_markup=get_main_keyboard())
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка callback запросов"""
     query = update.callback_query
     data = query.data
     
@@ -1605,7 +1524,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await take_test_answer(update, context)
     elif data.startswith("buy_"):
         item = data[4:]
-        await query.message.reply_text(f"💎 *Покупка:* {item}\n\n💰 Оплата: напишите @LavaTopBot", 
+        await query.message.reply_text(f"💎 *Покупка:* {item}\n\n💰 Оплата: напишите @LavaTopBot\n\n✨ Для активации премиума напишите @LavaTopBot с чеком", 
                                        parse_mode=ParseMode.MARKDOWN)
     elif data == "shop":
         await shop(update, context)
@@ -1615,39 +1534,30 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
 def main():
-    """Запуск бота"""
     try:
-        # Создаем приложение
         app = Application.builder().token(TOKEN).build()
         
-        # Регистрируем хендлеры
         app.add_handler(CommandHandler("start", start))
         
-        # Основные кнопки
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['test']} Создать тест$"), create_test_start))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['crown']} Мои тесты$"), my_tests))
-        app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['achievement']} Мои ачивки$"), achievements_list))
+        app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['stats']} Моя статистика$"), my_stats))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['daily']} Ежедневный бонус$"), daily_bonus))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['money']} Пригласить подруг$"), invite))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['shop']} Магазин$"), shop))
-        app.add_handler(MessageHandler(filters.Regex("^📊 Статистика$"), stats))
-        app.add_handler(MessageHandler(filters.Regex("^📋 Топ подруг$"), top_friends))
+        app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['top']} Топ подруг$"), top_friends))
         
-        # Кнопки создания теста
         app.add_handler(MessageHandler(filters.Regex("^➕ Добавить вариант$"), add_option))
         app.add_handler(MessageHandler(filters.Regex("^✅ Готово$"), finish_options))
         app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['back']} Назад$"), back_to_questions))
         app.add_handler(MessageHandler(filters.Regex("^🔙 Назад к вопросам$"), back_to_questions))
         
-        # Общие обработчики
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
         app.add_handler(MessageHandler(filters.Regex("^❌ Отмена$"), cancel_creation))
         
-        # Callback обработчики
         app.add_handler(CallbackQueryHandler(callback_handler))
         
-        # Запускаем бота
-        logger.info("🚀 Бот запущен на сервере в Германии!")
+        logger.info("🚀 Бот запущен!")
         app.run_polling()
         
     except Exception as e:
