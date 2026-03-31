@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 30.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 31.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -840,7 +840,7 @@ async def next_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question_text = questions[current_idx]
     data['current_question_text'] = question_text
     
-    await query.message.edit_text(
+    await query.message.reply_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
         f"❓ Что делать с этим вопросом?",
         parse_mode=ParseMode.MARKDOWN,
@@ -910,7 +910,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     
     logger.info(f"✅ Переход к вводу количества вопросов для группы {group_name}")
     
-    await query.message.edit_text(
+    await query.message.reply_text(
         f"✨ Выбрана группа: {group_name}\n\n"
         f"📊 *Сколько вопросов будет в тесте?*\n"
         f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
@@ -1370,7 +1370,7 @@ async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     user_id = query.from_user.id
-    await query.message.edit_text(
+    await query.message.reply_text(
         "✨ Выбери *группу вопросов*:",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_question_groups_keyboard(user_id)
