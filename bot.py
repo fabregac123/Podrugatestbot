@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 32.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 33.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -1089,7 +1089,7 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     
     logger.info(f"✅ Сохранен вопрос {data['current_q']}/{data['total_q']}")
     
-    await query.message.edit_text(
+    await query.message.reply_text(
         f"✅ *Вопрос {data['current_q']}/{data['total_q']} сохранен!*\n\n"
         f"Правильный ответ: {options[correct_idx]}",
         parse_mode=ParseMode.MARKDOWN
@@ -1174,9 +1174,9 @@ async def my_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    favorites = get_favorites(user_id)
+    favs = get_favorites(user_id)
     
-    if not favorites:
+    if not favs:
         await update.message.reply_text(
             f"{WOW_EMOJIS['favorite']} *Избранное*\n\nУ тебя пока нет избранных тестов.\nДобавляй тесты в избранное, чтобы быстро к ним возвращаться!",
             parse_mode=ParseMode.MARKDOWN,
@@ -1185,7 +1185,7 @@ async def favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     text = f"{WOW_EMOJIS['favorite']} *ИЗБРАННЫЕ ТЕСТЫ* {WOW_EMOJIS['favorite']}\n\n"
-    for test in favorites:
+    for test in favs:
         text += f"📝 *{test['title']}*\n   👤 Автор: {test['creator_name']}\n\n"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
@@ -1325,7 +1325,6 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         c.execute('SELECT COUNT(*) + 1 FROM users WHERE total_points > ?', (points,))
         rating = c.fetchone()[0]
         
-        # Получаем статистику по тестам
         tests_stats = get_attempts_stats(user_id)
     finally:
         conn.close()
@@ -1365,10 +1364,9 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"• {r['name']} — нужно {need} очков\n"
             break
     
-    # Детальная статистика по тестам (только для премиум)
     if has_premium and tests_stats:
         text += f"\n📊 *СТАТИСТИКА ТЕСТОВ* 📊\n\n"
-        for stat in tests_stats[:5]:  # Показываем топ-5 тестов
+        for stat in tests_stats[:5]:
             text += f"📝 *{stat['title']}*\n"
             text += f"   👥 Прошло: {stat['attempts_count']} подруг\n"
             text += f"   📊 Средний балл: {stat['avg_score']:.1f}%\n\n"
