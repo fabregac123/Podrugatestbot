@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 31.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 32.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -33,6 +33,8 @@ MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
+MAX_FAVORITES_FREE = 3
+MAX_FAVORITES_PREMIUM = 10
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -178,7 +180,7 @@ WOW_EMOJIS = {
     'test': '📝', 'friend': '👯', 'crown': '👑',
     'star': '⭐', 'heart': '💖', 'daily': '🎁',
     'achievement': '🏆', 'shop': '🛍️', 'money': '💰',
-    'top': '🏆', 'back': '🔙', 'stats': '📊', 'cancel': '❌'
+    'top': '🏆', 'back': '🔙', 'stats': '📊', 'cancel': '❌', 'favorite': '⭐'
 }
 
 # === БАЗА ДАННЫХ ===
@@ -241,6 +243,14 @@ def init_db():
             UNIQUE(test_id, friend_id)
         )''')
         
+        c.execute('''CREATE TABLE IF NOT EXISTS favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            test_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, test_id)
+        )''')
+        
         c.execute('''CREATE TABLE IF NOT EXISTS referrals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             referrer_id INTEGER,
@@ -248,16 +258,9 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
         
-        c.execute('''CREATE TABLE IF NOT EXISTS purchases (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            item_type TEXT,
-            price INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )''')
-        
         c.execute('CREATE INDEX IF NOT EXISTS idx_tests_creator ON tests(creator_id)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_attempts_test ON attempts(test_id)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id)')
         
         conn.commit()
         logger.info("База данных инициализирована")
@@ -511,6 +514,66 @@ def save_attempt(test_id, friend_id, friend_name, friend_username, answers, scor
     finally:
         conn.close()
 
+def add_favorite(user_id, test_id):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('INSERT INTO favorites (user_id, test_id) VALUES (?, ?)', (user_id, test_id))
+        conn.commit()
+        return True
+    except:
+        return False
+
+def remove_favorite(user_id, test_id):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('DELETE FROM favorites WHERE user_id = ? AND test_id = ?', (user_id, test_id))
+        conn.commit()
+        return True
+    except:
+        return False
+
+def get_favorites(user_id):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('''SELECT t.id, t.title, t.creator_name 
+                     FROM favorites f 
+                     JOIN tests t ON f.test_id = t.id 
+                     WHERE f.user_id = ? 
+                     ORDER BY f.created_at DESC''', (user_id,))
+        return c.fetchall()
+    finally:
+        conn.close()
+
+def get_favorites_count(user_id):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM favorites WHERE user_id = ?', (user_id,))
+        return c.fetchone()[0]
+    finally:
+        conn.close()
+
+def get_attempts_stats(user_id, test_id=None):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        if test_id:
+            c.execute('''SELECT friend_name, friend_username, score, completed_at 
+                         FROM attempts WHERE test_id = ? ORDER BY score DESC''', (test_id,))
+        else:
+            c.execute('''SELECT a.test_id, t.title, COUNT(a.id) as attempts_count, AVG(a.score) as avg_score
+                         FROM attempts a
+                         JOIN tests t ON a.test_id = t.id
+                         WHERE t.creator_id = ?
+                         GROUP BY a.test_id
+                         ORDER BY avg_score DESC''', (user_id,))
+        return c.fetchall()
+    finally:
+        conn.close()
+
 def get_friendship_status(score):
     if score >= 95: return "👑 АБСОЛЮТНЫЕ БЛИЗНЕЦЫ"
     if score >= 85: return "💎 ЛУЧШИЕ ПОДРУГИ НАВЕК"
@@ -529,7 +592,7 @@ def get_main_keyboard():
         [KeyboardButton(f"{WOW_EMOJIS['test']} Создать тест"), KeyboardButton(f"{WOW_EMOJIS['crown']} Мои тесты")],
         [KeyboardButton(f"{WOW_EMOJIS['stats']} Моя статистика"), KeyboardButton(f"{WOW_EMOJIS['daily']} Бонус")],
         [KeyboardButton(f"{WOW_EMOJIS['money']} Пригласить подруг"), KeyboardButton(f"{WOW_EMOJIS['shop']} Магазин")],
-        [KeyboardButton(f"{WOW_EMOJIS['top']} Топ подруг")]
+        [KeyboardButton(f"{WOW_EMOJIS['top']} Топ подруг"), KeyboardButton(f"{WOW_EMOJIS['favorite']} Избранное")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -590,18 +653,9 @@ def get_question_groups_keyboard(user_id):
 
 def get_shop_keyboard():
     keyboard = [
-        [InlineKeyboardButton("📦 5 тестов — 79 ₽", callback_data="buy_tests_5"), 
-         InlineKeyboardButton("📦 10 тестов — 129 ₽", callback_data="buy_tests_10")],
-        [InlineKeyboardButton("📦 20 тестов — 199 ₽", callback_data="buy_tests_20"), 
-         InlineKeyboardButton("📦 50 тестов — 449 ₽", callback_data="buy_tests_50")],
-        [InlineKeyboardButton("💎 Премиум 30 дней — 299 ₽", callback_data="buy_premium_month"), 
-         InlineKeyboardButton("💎 Премиум 3 мес — 699 ₽", callback_data="buy_premium_3months")],
-        [InlineKeyboardButton("💎 Премиум ГОД — 1999 ₽", callback_data="buy_premium_year"),
-         InlineKeyboardButton("✨ Премиум-диплом — 49 ₽", callback_data="buy_premium_diploma")],
-        [InlineKeyboardButton("🥇 Золотой диплом — 99 ₽", callback_data="buy_gold_diploma"),
-         InlineKeyboardButton("🖼️ Золотая рамка — 29 ₽", callback_data="buy_frame_gold")],
-        [InlineKeyboardButton("🖼️ Алмазная рамка — 49 ₽", callback_data="buy_frame_diamond"),
-         InlineKeyboardButton("👑 Королевская рамка — 99 ₽", callback_data="buy_frame_royal")]
+        [InlineKeyboardButton("💎 Премиум 30 дней — 299 ₽", callback_data="buy_premium_month")],
+        [InlineKeyboardButton("💎 Премиум 3 месяца — 699 ₽", callback_data="buy_premium_3months")],
+        [InlineKeyboardButton("💎 Премиум ГОД — 1999 ₽", callback_data="buy_premium_year")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -615,6 +669,13 @@ def get_share_confirm_keyboard(test_id):
 
 def get_start_test_keyboard(test_id):
     return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🎮 Начать тест", callback_data=f"start_test_{test_id}"),
+        InlineKeyboardButton("⭐ В избранное", callback_data=f"favorite_{test_id}")
+    ]])
+
+def get_favorite_test_keyboard(test_id):
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🗑️ Удалить из избранного", callback_data=f"unfavorite_{test_id}"),
         InlineKeyboardButton("🎮 Начать тест", callback_data=f"start_test_{test_id}")
     ]])
 
@@ -840,7 +901,7 @@ async def next_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question_text = questions[current_idx]
     data['current_question_text'] = question_text
     
-    await query.message.reply_text(
+    await query.message.edit_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
         f"❓ Что делать с этим вопросом?",
         parse_mode=ParseMode.MARKDOWN,
@@ -862,7 +923,7 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     data['waiting_for_option'] = True
     logger.info(f"Начинаем сбор вариантов для вопроса {data['current_q'] + 1}")
     
-    await query.message.reply_text(
+    await query.message.edit_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
         f"❓ {data['current_question_text']}\n\n"
         f"✏️ Напишите *вариант ответа №1*:",
@@ -910,7 +971,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     
     logger.info(f"✅ Переход к вводу количества вопросов для группы {group_name}")
     
-    await query.message.reply_text(
+    await query.message.edit_text(
         f"✨ Выбрана группа: {group_name}\n\n"
         f"📊 *Сколько вопросов будет в тесте?*\n"
         f"🔹 Для вашего тарифа: от 2 до {max_q}\n\n"
@@ -1028,7 +1089,7 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     
     logger.info(f"✅ Сохранен вопрос {data['current_q']}/{data['total_q']}")
     
-    await query.message.reply_text(
+    await query.message.edit_text(
         f"✅ *Вопрос {data['current_q']}/{data['total_q']} сохранен!*\n\n"
         f"Правильный ответ: {options[correct_idx]}",
         parse_mode=ParseMode.MARKDOWN
@@ -1111,6 +1172,82 @@ async def my_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
+async def favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    favorites = get_favorites(user_id)
+    
+    if not favorites:
+        await update.message.reply_text(
+            f"{WOW_EMOJIS['favorite']} *Избранное*\n\nУ тебя пока нет избранных тестов.\nДобавляй тесты в избранное, чтобы быстро к ним возвращаться!",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_main_keyboard()
+        )
+        return
+    
+    text = f"{WOW_EMOJIS['favorite']} *ИЗБРАННЫЕ ТЕСТЫ* {WOW_EMOJIS['favorite']}\n\n"
+    for test in favorites:
+        text += f"📝 *{test['title']}*\n   👤 Автор: {test['creator_name']}\n\n"
+    
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+
+async def add_to_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        test_id = int(query.data.split("_")[1])
+    except:
+        await query.message.reply_text("Ошибка")
+        return
+    
+    user_id = query.from_user.id
+    has_premium = is_premium(user_id)
+    favorites_count = get_favorites_count(user_id)
+    max_favorites = MAX_FAVORITES_PREMIUM if has_premium else MAX_FAVORITES_FREE
+    
+    if favorites_count >= max_favorites:
+        await query.message.reply_text(
+            f"{WOW_EMOJIS['error']} *Лимит избранного!*\n\n"
+            f"Ты можешь добавить только {max_favorites} тестов в избранное.\n"
+            f"💎 Премиум позволяет добавить до {MAX_FAVORITES_PREMIUM} тестов!",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    if add_favorite(user_id, test_id):
+        await query.message.reply_text(
+            f"{WOW_EMOJIS['success']} *Тест добавлен в избранное!*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        await query.message.reply_text(
+            f"{WOW_EMOJIS['error']} *Тест уже в избранном!*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+async def remove_from_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        test_id = int(query.data.split("_")[1])
+    except:
+        await query.message.reply_text("Ошибка")
+        return
+    
+    user_id = query.from_user.id
+    
+    if remove_favorite(user_id, test_id):
+        await query.message.reply_text(
+            f"✅ *Тест удален из избранного!*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        await query.message.reply_text(
+            f"❌ *Ошибка при удалении*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+
 async def top_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -1176,6 +1313,8 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tests_left = get_available_tests(user_id)
     has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
+    favorites_count = get_favorites_count(user_id)
+    max_favorites = MAX_FAVORITES_PREMIUM if has_premium else MAX_FAVORITES_FREE
     
     conn = get_db()
     try:
@@ -1185,6 +1324,9 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         c.execute('SELECT COUNT(*) + 1 FROM users WHERE total_points > ?', (points,))
         rating = c.fetchone()[0]
+        
+        # Получаем статистику по тестам
+        tests_stats = get_attempts_stats(user_id)
     finally:
         conn.close()
     
@@ -1210,6 +1352,7 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📝 *Создано тестов:* {created}
 🎯 *Пройдено тестов:* {tests_passed}
 👭 *Приглашено подруг:* {referrals}
+⭐ *В избранном:* {favorites_count}/{max_favorites}
 
 📦 *Тестов доступно:* {tests_left}
 🔢 *Максимум вопросов:* {max_q}{unlimited_text}
@@ -1221,6 +1364,18 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             need = r['min_score'] - points
             text += f"• {r['name']} — нужно {need} очков\n"
             break
+    
+    # Детальная статистика по тестам (только для премиум)
+    if has_premium and tests_stats:
+        text += f"\n📊 *СТАТИСТИКА ТЕСТОВ* 📊\n\n"
+        for stat in tests_stats[:5]:  # Показываем топ-5 тестов
+            text += f"📝 *{stat['title']}*\n"
+            text += f"   👥 Прошло: {stat['attempts_count']} подруг\n"
+            text += f"   📊 Средний балл: {stat['avg_score']:.1f}%\n\n"
+    elif tests_stats:
+        text += f"\n📊 *СТАТИСТИКА ТЕСТОВ (ПРЕМИУМ)*\n"
+        text += f"💎 *Купи премиум, чтобы видеть полную статистику по каждому тесту!*\n"
+        text += f"📊 Всего пройдено тестов: {len(tests_stats)}\n"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
@@ -1282,42 +1437,34 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rank = get_rank(points)
     has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
+    max_fav = MAX_FAVORITES_PREMIUM if has_premium else MAX_FAVORITES_FREE
     
-    text = f"""{WOW_EMOJIS['shop']} *МАГАЗИН* {WOW_EMOJIS['shop']}
+    text = f"""{WOW_EMOJIS['shop']} *ПРЕМИУМ ПОДПИСКА* {WOW_EMOJIS['shop']}
 
-👑 *Ранг:* {rank['name']}
+👑 *Твой ранг:* {rank['name']}
 ⭐ *Очки:* {points}
-📦 *Тестов доступно:* {get_available_tests(user_id)}
-🔢 *Вопросов в тесте:* до {max_q}
+🔢 *Сейчас вопросов в тесте:* до {max_q}
+⭐ *Избранное:* {get_favorites_count(user_id)}/{max_fav}
 
-📦 *ПАКЕТЫ ТЕСТОВ:*
-• 5 тестов — 79 ₽ (15.8 ₽/тест)
-• 10 тестов — 129 ₽ (12.9 ₽/тест)
-• 20 тестов — 199 ₽ (9.95 ₽/тест)
-• 50 тестов — 449 ₽ (8.98 ₽/тест)
+💎 *ПРЕИМУЩЕСТВА ПРЕМИУМ:*
 
-💎 *ПРЕМИУМ ПОДПИСКА:*
+✅ *До 10 вопросов в тесте* (вместо 5)
+✅ *10 групп вопросов* (вместо 4)
+✅ *До 10 тестов в избранном* (вместо 3)
+✅ *Полная статистика по тестам*
+   • Кто проходил твои тесты
+   • Средний балл каждого теста
+   • Детальный анализ ответов
+✅ *Неограниченное количество тестов*
+✅ *Эксклюзивные рамки и дипломы*
+
+🎁 *СТОИМОСТЬ ПРЕМИУМ:*
+
 • 30 дней — 299 ₽ (10 ₽/день)
 • 3 месяца — 699 ₽ (7.7 ₽/день)
 • ГОД — 1999 ₽ (5.5 ₽/день)
 
-✨ *Преимущества премиума:*
-✅ Неограниченные тесты
-✅ До {MAX_QUESTIONS_PREMIUM} вопросов
-✅ 10 групп вопросов
-✅ Эксклюзивные рамки
-
-🎨 *ДИПЛОМЫ И РАМКИ:*
-• Премиум-диплом — 49 ₽
-• Золотой диплом — 99 ₽
-• Золотая рамка — 29 ₽
-• Алмазная рамка — 49 ₽
-• Королевская рамка — 99 ₽
-
-💡 *СОВЕТ:* Премиум выгоднее, чем покупка тестов по отдельности!
-Если вы создаете более 10 тестов в месяц — берите премиум! 🎯
-
-💰 *Оплата:* напишите @LavaTopBot"""
+💡 *СОВЕТ:* Если ты создаешь больше 10 тестов в месяц или хочешь видеть полную статистику — премиум для тебя!"""
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_shop_keyboard())
 
@@ -1370,7 +1517,7 @@ async def back_to_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     user_id = query.from_user.id
-    await query.message.reply_text(
+    await query.message.edit_text(
         "✨ Выбери *группу вопросов*:",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_question_groups_keyboard(user_id)
@@ -1494,6 +1641,8 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await shop(update, context)
     elif text == f"{WOW_EMOJIS['top']} Топ подруг":
         await top_friends(update, context)
+    elif text == f"{WOW_EMOJIS['favorite']} Избранное":
+        await favorites(update, context)
     elif text == "➕ Добавить вариант":
         await add_option(update, context)
     elif text == "✅ Готово":
@@ -1533,6 +1682,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cancel_share(update, context)
     elif data.startswith("start_test_"):
         await start_test(update, context)
+    elif data.startswith("favorite_"):
+        await add_to_favorites(update, context)
+    elif data.startswith("unfavorite_"):
+        await remove_from_favorites(update, context)
     elif data.startswith("answer_"):
         await take_test_answer(update, context)
     elif data == "open_shop":
@@ -1541,8 +1694,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item = data[4:]
         await query.message.reply_text(
             f"💎 *Покупка:* {item}\n\n"
-            f"💰 Оплата: напишите @LavaTopBot\n\n"
-            f"✨ Для активации премиума напишите @LavaTopBot с чеком", 
+            f"✨ Для оформления подписки напишите @LavaTopBot\n\n"
+            f"💰 После оплаты премиум активируется автоматически!", 
             parse_mode=ParseMode.MARKDOWN
         )
     elif data == "shop":
@@ -1564,6 +1717,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['money']} Пригласить подруг$"), invite))
     app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['shop']} Магазин$"), shop))
     app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['top']} Топ подруг$"), top_friends))
+    app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['favorite']} Избранное$"), favorites))
     
     app.add_handler(MessageHandler(filters.Regex("^➕ Добавить вариант$"), add_option))
     app.add_handler(MessageHandler(filters.Regex("^✅ Готово$"), finish_options))
