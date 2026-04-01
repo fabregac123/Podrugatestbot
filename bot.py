@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 37.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 38.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -182,6 +182,16 @@ WOW_EMOJIS = {
     'achievement': '🏆', 'shop': '🛍️', 'money': '💰',
     'top': '🏆', 'back': '🔙', 'stats': '📊', 'cancel': '❌', 'favorite': '⭐'
 }
+
+# === ФУНКЦИЯ ДЛЯ СКЛОНЕНИЯ ===
+def declension(count, forms):
+    """Возвращает правильную форму слова в зависимости от числа"""
+    if count % 10 == 1 and count % 100 != 11:
+        return forms[0]
+    elif 2 <= count % 10 <= 4 and (count % 100 < 10 or count % 100 >= 20):
+        return forms[1]
+    else:
+        return forms[2]
 
 # === БАЗА ДАННЫХ ===
 def get_db():
@@ -713,12 +723,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tests = get_available_tests(user.id)
     premium_status = "🔓 Бесплатный" if not is_premium(user.id) else "💎 Премиум"
     
+    tests_word = declension(tests, ["тест", "теста", "тестов"])
+    
     text = f"""{WOW_EMOJIS['start']} *ПРИВЕТ, {user.first_name or 'ПОДРУГА'}!*
 
 ✨ Добро пожаловать в *PodrugaTestBot*!
 
 🎀 *Твой статус:* {premium_status}
-🎁 *У тебя:* {tests} тестов
+🎁 *У тебя:* {tests} {tests_word}
 ⭐ *Очки:* {points}
 🏆 *Ранг:* {rank['name']}
 
@@ -875,12 +887,14 @@ async def show_current_question(update: Update, context: ContextTypes.DEFAULT_TY
     data['current_question_text'] = question_text
     logger.info(f"Показываем вопрос {data['current_q'] + 1}/{data['total_q']}: {question_text[:50]}")
     
-    await update.message.reply_text(
+    # Сохраняем ID сообщения для последующего редактирования
+    message = await update.message.reply_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
         f"❓ Что делать с этим вопросом?",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_question_keyboard()
     )
+    data['message_id'] = message.message_id
 
 async def next_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -901,7 +915,8 @@ async def next_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     question_text = questions[current_idx]
     data['current_question_text'] = question_text
     
-    await query.message.reply_text(
+    # Редактируем существующее сообщение
+    await query.message.edit_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
         f"❓ Что делать с этим вопросом?",
         parse_mode=ParseMode.MARKDOWN,
@@ -1208,8 +1223,8 @@ async def add_to_favorites(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if favorites_count >= max_favorites:
         await query.message.reply_text(
             f"{WOW_EMOJIS['error']} *Лимит избранного!*\n\n"
-            f"Ты можешь добавить только {max_favorites} тестов в избранное.\n"
-            f"💎 Премиум позволяет добавить до {MAX_FAVORITES_PREMIUM} тестов!",
+            f"Ты можешь добавить только {max_favorites} {declension(max_favorites, ['тест', 'теста', 'тестов'])} в избранное.\n"
+            f"💎 Премиум позволяет добавить до {MAX_FAVORITES_PREMIUM} {declension(MAX_FAVORITES_PREMIUM, ['теста', 'тестов', 'тестов'])}!",
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -1282,6 +1297,7 @@ async def top_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, friend in enumerate(rows, 1):
         name = friend['friend_name'] or friend['friend_username'] or f"ID {friend['friend_id']}"
         avg = friend['avg_score']
+        tests_word = declension(friend['tests_count'], ["тест", "теста", "тестов"])
         
         if i == 1:
             medal = "🥇"
@@ -1294,7 +1310,7 @@ async def top_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         text += f"{medal} *{name}*\n"
         text += f"   📊 Средний балл: {avg:.1f}%\n"
-        text += f"   📝 Тестов пройдено: {friend['tests_count']}\n\n"
+        text += f"   📝 Пройдено {friend['tests_count']} {tests_word}\n\n"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
@@ -1340,21 +1356,28 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except (ValueError, TypeError):
                 pass
     
+    created_word = declension(created, ["тест", "теста", "тестов"])
+    passed_word = declension(tests_passed, ["тест", "теста", "тестов"])
+    referrals_word = declension(referrals, ["подругу", "подруги", "подруг"])
+    left_word = declension(tests_left, ["тест", "теста", "тестов"])
+    streak_word = declension(streak, ["день", "дня", "дней"])
+    fav_word = declension(favorites_count, ["тест", "теста", "тестов"])
+    
     text = f"""{WOW_EMOJIS['stats']} *СТАТИСТИКА ПРОФИЛЯ* {WOW_EMOJIS['stats']}
 
 👤 *Имя:* {user.get('first_name', 'Подруга')}
 🏆 *Ранг:* {rank['name']}
 ⭐ *Очки:* {points}
 📊 *Место в рейтинге:* {rating}
-🔥 *Серия дней:* {streak}
+🔥 *Серия дней:* {streak} {streak_word}
 
-📝 *Создано тестов:* {created}
-🎯 *Пройдено тестов:* {tests_passed}
-👭 *Приглашено подруг:* {referrals}
-⭐ *В избранном:* {favorites_count}/{max_favorites}
+📝 *Создано тестов:* {created} {created_word}
+🎯 *Пройдено тестов:* {tests_passed} {passed_word}
+👭 *Приглашено подруг:* {referrals} {referrals_word}
+⭐ *В избранном:* {favorites_count} {fav_word} из {max_favorites}
 
-📦 *Тестов доступно:* {tests_left}
-🔢 *Максимум вопросов:* {max_q}{unlimited_text}
+📦 *Тестов доступно:* {tests_left} {left_word}
+🔢 *Максимум вопросов:* до {max_q}{unlimited_text}
 
 ✨ *До следующего ранга:*
 """
@@ -1367,13 +1390,14 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if has_premium and tests_stats:
         text += f"\n📊 *СТАТИСТИКА ТЕСТОВ* 📊\n\n"
         for stat in tests_stats[:5]:
+            attempts_word = declension(stat['attempts_count'], ["подруга", "подруги", "подруг"])
             text += f"📝 *{stat['title']}*\n"
-            text += f"   👥 Прошло: {stat['attempts_count']} подруг\n"
+            text += f"   👥 Прошло: {stat['attempts_count']} {attempts_word}\n"
             text += f"   📊 Средний балл: {stat['avg_score']:.1f}%\n\n"
     elif tests_stats:
         text += f"\n📊 *СТАТИСТИКА ТЕСТОВ (ПРЕМИУМ)*\n"
         text += f"💎 *Купи премиум, чтобы видеть полную статистику по каждому тесту!*\n"
-        text += f"📊 Всего пройдено тестов: {len(tests_stats)}\n"
+        text += f"📊 Всего пройдено тестов: {len(tests_stats)} {declension(len(tests_stats), ['тест', 'теста', 'тестов'])}\n"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
@@ -1382,10 +1406,12 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = get_daily_bonus(user_id)
     
     if result[0] is None:
+        streak = result[1]
+        streak_word = declension(streak, ["день", "дня", "дней"])
         await update.message.reply_text(
             f"{WOW_EMOJIS['daily']} 🎁 *Бонус*\n\n"
             f"Ты уже получала бонус сегодня!\n"
-            f"🔥 Серия: {result[1]} дней\n"
+            f"🔥 Серия: {streak} {streak_word}\n"
             f"⏰ Возвращайся завтра!",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_main_keyboard()
@@ -1393,7 +1419,8 @@ async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     bonus, streak = result
-    text = f"{WOW_EMOJIS['daily']} 🎁 *БОНУС!*\n\n✨ *+{bonus} очков!*\n🔥 *Серия:* {streak} дней\n\n💫 Приходи завтра снова!"
+    streak_word = declension(streak, ["день", "дня", "дней"])
+    text = f"{WOW_EMOJIS['daily']} 🎁 *БОНУС!*\n\n✨ *+{bonus} очков!*\n🔥 *Серия:* {streak} {streak_word}\n\n💫 Приходи завтра снова!"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1405,6 +1432,8 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     code = user.get('referral_code', str(update.effective_user.id))
     link = f"https://t.me/{BOT_USERNAME}?start={code}"
+    referrals = user.get('referral_count', 0)
+    referrals_word = declension(referrals, ["подругу", "подруги", "подруг"])
     
     text = f"""{WOW_EMOJIS['money']} *ПРИГЛАСИ ПОДРУГУ* {WOW_EMOJIS['money']}
 
@@ -1413,7 +1442,7 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔗 *Твоя ссылка:* 
 {link}
 
-👭 *Приглашено подруг:* {user.get('referral_count', 0)}
+👭 *Приглашено подруг:* {referrals} {referrals_word}
 
 💡 *Отправь ссылку подруге, и она получит 1 тест на старт!*
 
@@ -1436,13 +1465,15 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_premium = is_premium(user_id)
     max_q = MAX_QUESTIONS_PREMIUM if has_premium else MAX_QUESTIONS_FREE
     max_fav = MAX_FAVORITES_PREMIUM if has_premium else MAX_FAVORITES_FREE
+    fav_count = get_favorites_count(user_id)
+    fav_word = declension(fav_count, ["тест", "теста", "тестов"])
     
     text = f"""{WOW_EMOJIS['shop']} *ПРЕМИУМ ПОДПИСКА* {WOW_EMOJIS['shop']}
 
 👑 *Твой ранг:* {rank['name']}
 ⭐ *Очки:* {points}
 🔢 *Сейчас вопросов в тесте:* до {max_q}
-⭐ *Избранное:* {get_favorites_count(user_id)}/{max_fav}
+⭐ *Избранное:* {fav_count} {fav_word} из {max_fav}
 
 💎 *ПРЕИМУЩЕСТВА ПРЕМИУМ:*
 
@@ -1458,9 +1489,9 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🎁 *СТОИМОСТЬ ПРЕМИУМ:*
 
-• 30 дней — 299 ₽ (10 ₽/день)
-• 3 месяца — 699 ₽ (7.7 ₽/день)
-• ГОД — 1999 ₽ (5.5 ₽/день)
+• 30 дней — 299 ₽
+• 3 месяца — 699 ₽
+• ГОД — 1999 ₽
 
 💡 *СОВЕТ:* Если ты создаешь больше 10 тестов в месяц или хочешь видеть полную статистику — премиум для тебя!"""
     
