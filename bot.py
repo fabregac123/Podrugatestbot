@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 34.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 35.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -923,7 +923,7 @@ async def select_current_question(update: Update, context: ContextTypes.DEFAULT_
     data['waiting_for_option'] = True
     logger.info(f"Начинаем сбор вариантов для вопроса {data['current_q'] + 1}")
     
-    await query.message.edit_text(
+    await query.message.reply_text(
         f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
         f"❓ {data['current_question_text']}\n\n"
         f"✏️ Напишите *вариант ответа №1*:",
