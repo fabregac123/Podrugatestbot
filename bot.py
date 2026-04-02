@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 41.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 42.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -1102,10 +1102,9 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     )
     
     if data['current_q'] < data['total_q']:
-        # Показываем следующий вопрос
         await show_next_question(query, context)
     else:
-        await finish_creation(update, context, query.from_user.id)
+        await finish_creation_from_callback(query, context, query.from_user.id)
 
 async def show_next_question(query, context):
     """Показывает следующий вопрос, используя query.message"""
@@ -1133,6 +1132,7 @@ async def show_next_question(query, context):
     )
 
 async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id):
+    """Завершение создания теста из обычного сообщения"""
     data = context.user_data.get('create_test', {})
     if not data:
         return
@@ -1180,6 +1180,60 @@ async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, us
                                       reply_markup=get_share_confirm_keyboard(test_id))
     else:
         await update.message.reply_text(f"{WOW_EMOJIS['error']} Ошибка создания теста", 
+                                       reply_markup=get_main_keyboard())
+    
+    del context.user_data['create_test']
+    logger.info(f"✅ Тест {test_id} создан пользователем {user_id}")
+
+async def finish_creation_from_callback(query, context, user_id):
+    """Завершение создания теста из callback"""
+    data = context.user_data.get('create_test', {})
+    if not data:
+        return
+    
+    questions = []
+    options = []
+    correct_answers = []
+    
+    for q in data['questions_data']:
+        questions.append(q['text'])
+        options.append(q['options'])
+        correct_answers.append(q['correct'])
+    
+    test_id = create_test(
+        user_id,
+        query.from_user.first_name,
+        query.from_user.username,
+        data['title'],
+        questions,
+        options,
+        correct_answers,
+        None, None
+    )
+    
+    if test_id:
+        context.user_data['pending_test'] = {
+            'test_id': test_id,
+            'title': data['title'],
+            'total_q': data['total_q']
+        }
+        
+        text = f"""{WOW_EMOJIS['success']} *ТЕСТ СОЗДАН!* {WOW_EMOJIS['success']}
+
+📝 *Название:* {data['title']}
+🔢 *Вопросов:* {data['total_q']}
+
+✨ *Что дальше?*
+• Поделись с подругой
+• Получай дипломы
+• Набирай очки
+
+👇 *Подтверди отправку, чтобы списать тест*
+"""
+        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
+                                      reply_markup=get_share_confirm_keyboard(test_id))
+    else:
+        await query.message.reply_text(f"{WOW_EMOJIS['error']} Ошибка создания теста", 
                                        reply_markup=get_main_keyboard())
     
     del context.user_data['create_test']
