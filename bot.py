@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 40.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 41.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -1102,9 +1102,35 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     )
     
     if data['current_q'] < data['total_q']:
-        await show_current_question(update, context)
+        # Показываем следующий вопрос
+        await show_next_question(query, context)
     else:
         await finish_creation(update, context, query.from_user.id)
+
+async def show_next_question(query, context):
+    """Показывает следующий вопрос, используя query.message"""
+    data = context.user_data.get('create_test')
+    if not data:
+        await query.message.reply_text("Ошибка: сессия создания теста потеряна")
+        return
+    
+    current_idx = data.get('current_question_index', 0)
+    questions = data.get('group_questions', [])
+    
+    if current_idx >= len(questions):
+        current_idx = 0
+        data['current_question_index'] = 0
+    
+    question_text = questions[current_idx]
+    data['current_question_text'] = question_text
+    logger.info(f"Показываем вопрос {data['current_q'] + 1}/{data['total_q']}: {question_text[:50]}")
+    
+    await query.message.reply_text(
+        f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n"
+        f"❓ Что делать с этим вопросом?",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_question_keyboard()
+    )
 
 async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id):
     data = context.user_data.get('create_test', {})
