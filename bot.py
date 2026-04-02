@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 44.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
+Версия: 45.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -33,8 +33,6 @@ MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
-MAX_FAVORITES_FREE = 3
-MAX_FAVORITES_PREMIUM = 10
 SAVED_TESTS_FREE = 3
 SAVED_TESTS_PREMIUM = 10
 
@@ -337,7 +335,7 @@ def create_user(user_id, username=None, first_name=None, referred_by=None):
                          (referred_by,))
                 c.execute('INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)', 
                          (referred_by, user_id))
-                logger.info(f"✅ Пользователь {referred_by} пригласил {user_id}, получил +1 тест")
+                logger.info(f"Пользователь {referred_by} пригласил {user_id}, получил +1 тест")
         conn.commit()
         return True
     except Exception as e:
@@ -810,7 +808,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if test:
                     creator = get_user(test['creator_id'])
                     creator_name = creator.get('first_name', 'Подруга') if creator else 'Подруга'
-                    text = f"🌸 *ПРИВЕТ, ДОРОГАЯ!* 🌸\n\n{creator_name} приглашает тебя пройти уютный тест о вашей дружбе!\n\n📝 *{test['title']}*\n\n✨ *Узнай, насколько хорошо ты знаешь свою подругу!* ✨\n\n👇 *Нажми на кнопку, чтобы начать* 👇"
+                    text = (f"🌸 *ПРИВЕТ, ДОРОГАЯ!* 🌸\n\n"
+                            f"{creator_name} приглашает тебя пройти уютный тест о вашей дружбе!\n\n"
+                            f"📝 *{test['title']}*\n\n"
+                            f"✨ *Узнай, насколько хорошо ты знаешь свою подругу!* ✨\n\n"
+                            f"👇 *Нажми на кнопку, чтобы начать* 👇")
                     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
                                                    reply_markup=get_start_test_keyboard(test_id))
                     return
@@ -821,7 +823,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not existing:
         create_user(user.id, user.username, user.first_name, referred_by)
         if referred_by:
-            logger.info(f"✅ Пользователь {user.id} зарегистрирован по реферальной ссылке от {referred_by}")
+            logger.info(f"Пользователь {user.id} зарегистрирован по реферальной ссылке от {referred_by}")
     else:
         update_user(user.id, user.username, user.first_name)
     
@@ -831,25 +833,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tests = get_available_tests(user.id)
     premium_status = "🔓 Бесплатный" if not is_premium(user.id) else "💎 Премиум"
     
-    text = f"""{WOW_EMOJIS['start']} *ПРИВЕТ, {user.first_name or 'ПОДРУГА'}!* {WOW_EMOJIS['start']}
-
-🌸 Добро пожаловать в *PodrugaTestBot* — место, где мы проверяем, насколько хорошо мы знаем друг друга!
-
-🎀 *Твой статус:* {premium_status}
-🎁 *У тебя:* {tests} тестов
-⭐ *Очки:* {points}
-🏆 *Ранг:* {rank['name']}
-
-💫 *Создай свой первый тест!* Нажми «Создать тест» и удиви подругу ✨
-
-🌟 *Что тут можно делать?*
-• Создавать тесты о себе
-• Отправлять их подругам
-• Узнавать, насколько хорошо тебя знают
-• Получать милые дипломы за результаты
-
-💖 *Поехали!* 👇
-"""
+    text = (f"{WOW_EMOJIS['start']} *ПРИВЕТ, {user.first_name or 'ПОДРУГА'}!* {WOW_EMOJIS['start']}\n\n"
+            f"🌸 Добро пожаловать в *PodrugaTestBot* — место, где мы проверяем, насколько хорошо мы знаем друг друга!\n\n"
+            f"🎀 *Твой статус:* {premium_status}\n"
+            f"🎁 *У тебя:* {tests} тестов\n"
+            f"⭐ *Очки:* {points}\n"
+            f"🏆 *Ранг:* {rank['name']}\n\n"
+            f"💫 *Создай свой первый тест!* Нажми «Создать тест» и удиви подругу ✨\n\n"
+            f"🌟 *Что тут можно делать?*\n"
+            f"• Создавать тесты о себе\n"
+            f"• Отправлять их подругам\n"
+            f"• Узнавать, насколько хорошо тебя знают\n"
+            f"• Получать милые дипломы за результаты\n\n"
+            f"💖 *Поехали!* 👇")
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -869,7 +865,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'step': 'title',
         'questions_data': []
     }
-    logger.info(f"✅ Создана новая сессия создания теста для {user_id}")
+    logger.info(f"Создана новая сессия создания теста для {user_id}")
     
     await update.message.reply_text(
         f"{WOW_EMOJIS['test']} *СОЗДАЕМ ТЕСТ!* {WOW_EMOJIS['test']}\n\n"
@@ -882,7 +878,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'create_test' in context.user_data:
-        logger.info(f"❌ Отмена создания теста пользователем {update.effective_user.id}")
+        logger.info(f"Отмена создания теста пользователем {update.effective_user.id}")
         del context.user_data['create_test']
     await update.message.reply_text("❌ Создание теста отменено.", reply_markup=get_main_keyboard())
 
@@ -921,7 +917,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
         data['title'] = text.strip()
         data['step'] = 'group'
-        logger.info(f"✅ Сохранено название теста: {data['title']}")
+        logger.info(f"Сохранено название теста: {data['title']}")
         
         user_id = update.effective_user.id
         await update.message.reply_text(
@@ -961,7 +957,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return
             
-            logger.info(f"✅ Начинаем создание вопросов. Всего: {count}")
+            logger.info(f"Начинаем создание вопросов. Всего: {count}")
             await show_current_question(update, context)
         except ValueError:
             await update.message.reply_text("⚠️ Пожалуйста, напишите число (например: 5):")
@@ -1066,7 +1062,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     
     try:
         group = query.data.split("_")[1]
-        logger.info(f"✅ Выбрана группа: {group}")
+        logger.info(f"Выбрана группа: {group}")
     except IndexError:
         logger.error(f"Ошибка: неверный формат callback_data: {query.data}")
         await query.message.reply_text("Ошибка выбора группы")
@@ -1075,14 +1071,14 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     data = context.user_data.get('create_test')
     
     if not data:
-        logger.error("❌ Нет сессии создания теста! Создаем новую...")
+        logger.error("Нет сессии создания теста! Создаем новую...")
         data = {
             'step': 'group',
             'questions_data': []
         }
         context.user_data['create_test'] = data
     else:
-        logger.info(f"✅ Найдена сессия создания теста. Step: {data.get('step')}, Title: {data.get('title', 'не задан')}")
+        logger.info(f"Найдена сессия создания теста. Step: {data.get('step')}, Title: {data.get('title', 'не задан')}")
     
     data['group'] = group
     data['step'] = 'waiting_question_count'
@@ -1095,7 +1091,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     if not group_name:
         group_name = "Вопросы"
     
-    logger.info(f"✅ Переход к вводу количества вопросов для группы {group_name}")
+    logger.info(f"Переход к вводу количества вопросов для группы {group_name}")
     
     await query.message.reply_text(
         f"✨ Выбрана группа: {group_name}\n\n"
@@ -1213,7 +1209,7 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     data['step'] = 'selecting_question'
     data['current_question_index'] = (data.get('current_question_index', 0) + 1) % len(data.get('group_questions', [1]))
     
-    logger.info(f"✅ Сохранен вопрос {data['current_q']}/{data['total_q']}")
+    logger.info(f"Сохранен вопрос {data['current_q']}/{data['total_q']}")
     
     await query.message.reply_text(
         f"✅ *Вопрос {data['current_q']}/{data['total_q']} сохранен!*",
@@ -1277,18 +1273,15 @@ async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, us
     if test_id:
         save_test(user_id, test_id)
         
-        text = f"""{WOW_EMOJIS['success']} *ТЕСТ СОЗДАН!* {WOW_EMOJIS['success']}
-
-📝 *Название:* {data['title']}
-🔢 *Вопросов:* {data['total_q']}
-
-✨ *Что дальше?*
-• Отправь тест подруге
-• Получи милый диплом
-• Набирай очки
-
-👇 *Подтверди отправку, чтобы списать тест*
-"""
+        text = (f"{WOW_EMOJIS['success']} *ТЕСТ СОЗДАН!* {WOW_EMOJIS['success']}\n\n"
+                f"📝 *Название:* {data['title']}\n"
+                f"🔢 *Вопросов:* {data['total_q']}\n\n"
+                f"✨ *Что дальше?*\n"
+                f"• Отправь тест подруге\n"
+                f"• Получи милый диплом\n"
+                f"• Набирай очки\n\n"
+                f"👇 *Подтверди отправку, чтобы списать тест*")
+        
         await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
                                       reply_markup=get_share_confirm_keyboard(test_id))
     else:
@@ -1296,7 +1289,7 @@ async def finish_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, us
                                        reply_markup=get_main_keyboard())
     
     del context.user_data['create_test']
-    logger.info(f"✅ Тест {test_id} создан пользователем {user_id}")
+    logger.info(f"Тест {test_id} создан пользователем {user_id}")
 
 async def finish_creation_from_callback(query, context, user_id):
     data = context.user_data.get('create_test', {})
@@ -1326,18 +1319,15 @@ async def finish_creation_from_callback(query, context, user_id):
     if test_id:
         save_test(user_id, test_id)
         
-        text = f"""{WOW_EMOJIS['success']} *ТЕСТ СОЗДАН!* {WOW_EMOJIS['success']}
-
-📝 *Название:* {data['title']}
-🔢 *Вопросов:* {data['total_q']}
-
-✨ *Что дальше?*
-• Отправь тест подруге
-• Получи милый диплом
-• Набирай очки
-
-👇 *Подтверди отправку, чтобы списать тест*
-"""
+        text = (f"{WOW_EMOJIS['success']} *ТЕСТ СОЗДАН!* {WOW_EMOJIS['success']}\n\n"
+                f"📝 *Название:* {data['title']}\n"
+                f"🔢 *Вопросов:* {data['total_q']}\n\n"
+                f"✨ *Что дальше?*\n"
+                f"• Отправь тест подруге\n"
+                f"• Получи милый диплом\n"
+                f"• Набирай очки\n\n"
+                f"👇 *Подтверди отправку, чтобы списать тест*")
+        
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
                                       reply_markup=get_share_confirm_keyboard(test_id))
     else:
@@ -1345,7 +1335,7 @@ async def finish_creation_from_callback(query, context, user_id):
                                        reply_markup=get_main_keyboard())
     
     del context.user_data['create_test']
-    logger.info(f"✅ Тест {test_id} создан пользователем {user_id}")
+    logger.info(f"Тест {test_id} создан пользователем {user_id}")
 
 # === ОСТАЛЬНЫЕ ХЕНДЛЕРЫ ===
 async def my_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1501,9 +1491,9 @@ async def share_my_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if use_test(user_id, test_id):
-        text = f"""{WOW_EMOJIS['success']} *Тест готов к отправке!*\n\n"
-        text += f"📝 {test['title']}\n\n"
-        text += f"Поделись им с подругой через кнопку ниже 👇"
+        text = (f"{WOW_EMOJIS['success']} *Тест готов к отправке!*\n\n"
+                f"📝 {test['title']}\n\n"
+                f"Поделись им с подругой через кнопку ниже 👇")
         
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
                                       reply_markup=get_share_confirm_keyboard(test_id))
@@ -1535,9 +1525,9 @@ async def share_saved_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if use_test(user_id, test_id):
-        text = f"""{WOW_EMOJIS['success']} *Тест готов к отправке!*\n\n"
-        text += f"📝 {test['title']}\n\n"
-        text += f"Поделись им с подругой через кнопку ниже 👇"
+        text = (f"{WOW_EMOJIS['success']} *Тест готов к отправке!*\n\n"
+                f"📝 {test['title']}\n\n"
+                f"Поделись им с подругой через кнопку ниже 👇")
         
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
                                       reply_markup=get_share_confirm_keyboard(test_id))
@@ -1650,25 +1640,21 @@ async def my_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except (ValueError, TypeError):
                 pass
     
-    text = f"""{WOW_EMOJIS['stats']} *ТВОЯ СТАТИСТИКА* {WOW_EMOJIS['stats']}
-
-👤 *Имя:* {user.get('first_name', 'Подруга')}
-🏆 *Ранг:* {rank['name']}
-⭐ *Очки:* {points}
-📊 *Место в рейтинге:* {rating}
-🔥 *Серия дней:* {streak}
-
-📝 *Создано тестов:* {created}
-🎯 *Пройдено тестов:* {tests_passed}
-👭 *Приглашено подруг:* {referrals}
-📦 *Сохранено тестов:* {saved_count}/{max_saved}
-🎓 *Выбранный диплом:* {diplom_name}
-
-📦 *Тестов доступно:* {tests_left}
-🔢 *Максимум вопросов:* {max_q}{unlimited_text}
-
-✨ *До следующего ранга:*
-"""
+    text = (f"{WOW_EMOJIS['stats']} *ТВОЯ СТАТИСТИКА* {WOW_EMOJIS['stats']}\n\n"
+            f"👤 *Имя:* {user.get('first_name', 'Подруга')}\n"
+            f"🏆 *Ранг:* {rank['name']}\n"
+            f"⭐ *Очки:* {points}\n"
+            f"📊 *Место в рейтинге:* {rating}\n"
+            f"🔥 *Серия дней:* {streak}\n\n"
+            f"📝 *Создано тестов:* {created}\n"
+            f"🎯 *Пройдено тестов:* {tests_passed}\n"
+            f"👭 *Приглашено подруг:* {referrals}\n"
+            f"📦 *Сохранено тестов:* {saved_count}/{max_saved}\n"
+            f"🎓 *Выбранный диплом:* {diplom_name}\n\n"
+            f"📦 *Тестов доступно:* {tests_left}\n"
+            f"🔢 *Максимум вопросов:* {max_q}{unlimited_text}\n\n"
+            f"✨ *До следующего ранга:*\n")
+    
     for r in RANKS:
         if r['min_score'] > points:
             need = r['min_score'] - points
@@ -1741,8 +1727,8 @@ async def choose_diplom_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
     
-    text = f"{WOW_EMOJIS['diplom']} *ВЫБЕРИ СВОЙ ДИПЛОМ* {WOW_EMOJIS['diplom']}\n\n"
-    text += f"Выбери диплом, который будут получать твои подруги за прохождение тестов!\n\n"
+    text = (f"{WOW_EMOJIS['diplom']} *ВЫБЕРИ СВОЙ ДИПЛОМ* {WOW_EMOJIS['diplom']}\n\n"
+            f"Выбери диплом, который будут получать твои подруги за прохождение тестов!\n\n")
     
     selected = get_selected_diplom(user_id)
     
@@ -1786,24 +1772,17 @@ async def invite(update: Update, context: ContextTypes.DEFAULT_TYPE):
     link = f"https://t.me/{BOT_USERNAME}?start={code}"
     referrals = user.get('referral_count', 0)
     
-    text = f"""{WOW_EMOJIS['money']} *ПРИГЛАСИ ПОДРУГУ* {WOW_EMOJIS['money']}
-
-🌸 *Приглашай подруг и получай бонусы!* 🌸
-
-🎁 *За каждую приглашенную подругу ты получаешь +1 тест!*
-💕 *Чем больше подруг, тем больше тестов!*
-
-🔗 *Твоя пригласительная ссылка:* 
-`{link}`
-
-👭 *Приглашено подруг:* {referrals}
-
-💡 *Как это работает:*
-1. Отправь ссылку подруге
-2. Она переходит и начинает использовать бота
-3. Ты получаешь +1 тест (и так за каждую!)
-
-✨ *Вместе веселее! Делитесь тестами и узнавайте друг друга лучше!* ✨"""
+    text = (f"{WOW_EMOJIS['money']} *ПРИГЛАСИ ПОДРУГУ* {WOW_EMOJIS['money']}\n\n"
+            f"🌸 *Приглашай подруг и получай бонусы!* 🌸\n\n"
+            f"🎁 *За каждую приглашенную подругу ты получаешь +1 тест!*\n"
+            f"💕 *Чем больше подруг, тем больше тестов!*\n\n"
+            f"🔗 *Твоя пригласительная ссылка:* \n`{link}`\n\n"
+            f"👭 *Приглашено подруг:* {referrals}\n\n"
+            f"💡 *Как это работает:*\n"
+            f"1. Отправь ссылку подруге\n"
+            f"2. Она переходит и начинает использовать бота\n"
+            f"3. Ты получаешь +1 тест (и так за каждую!)\n\n"
+            f"✨ *Вместе веселее! Делитесь тестами и узнавайте друг друга лучше!* ✨")
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
@@ -1821,33 +1800,27 @@ async def shop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     max_saved = SAVED_TESTS_PREMIUM if has_premium else SAVED_TESTS_FREE
     saved_count = get_saved_tests_count(user_id)
     
-    text = f"""{WOW_EMOJIS['shop']} *ПРЕМИУМ ПОДПИСКА* {WOW_EMOJIS['shop']}
-
-👑 *Твой ранг:* {rank['name']}
-⭐ *Очки:* {points}
-🔢 *Сейчас вопросов в тесте:* до {max_q}
-📦 *Сохранено тестов:* {saved_count}/{max_saved}
-
-💎 *ПРЕИМУЩЕСТВА ПРЕМИУМ:*
-
-✅ *До 10 вопросов в тесте* (вместо 5)
-✅ *10 групп вопросов* (вместо 4)
-✅ *До 10 сохраненных тестов* (вместо 3)
-✅ *Полная статистика по тестам*
-   • Кто проходил твои тесты
-   • Детальные ответы каждой подруги
-   • Средний балл каждого теста
-✅ *5 красивых дипломов на выбор*
-✅ *Неограниченное количество тестов*
-✅ *Эксклюзивные рамки и дипломы*
-
-🎁 *СТОИМОСТЬ ПРЕМИУМ:*
-
-• 30 дней — 299 ₽
-• 3 месяца — 699 ₽
-• ГОД — 1999 ₽
-
-💡 *СОВЕТ:* Если ты создаешь больше 10 тестов в месяц или хочешь видеть полную статистику — премиум для тебя!"""
+    text = (f"{WOW_EMOJIS['shop']} *ПРЕМИУМ ПОДПИСКА* {WOW_EMOJIS['shop']}\n\n"
+            f"👑 *Твой ранг:* {rank['name']}\n"
+            f"⭐ *Очки:* {points}\n"
+            f"🔢 *Сейчас вопросов в тесте:* до {max_q}\n"
+            f"📦 *Сохранено тестов:* {saved_count}/{max_saved}\n\n"
+            f"💎 *ПРЕИМУЩЕСТВА ПРЕМИУМ:*\n\n"
+            f"✅ *До 10 вопросов в тесте* (вместо 5)\n"
+            f"✅ *10 групп вопросов* (вместо 4)\n"
+            f"✅ *До 10 сохраненных тестов* (вместо 3)\n"
+            f"✅ *Полная статистика по тестам*\n"
+            f"   • Кто проходил твои тесты\n"
+            f"   • Детальные ответы каждой подруги\n"
+            f"   • Средний балл каждого теста\n"
+            f"✅ *5 красивых дипломов на выбор*\n"
+            f"✅ *Неограниченное количество тестов*\n"
+            f"✅ *Эксклюзивные рамки и дипломы*\n\n"
+            f"🎁 *СТОИМОСТЬ ПРЕМИУМ:*\n\n"
+            f"• 30 дней — 299 ₽\n"
+            f"• 3 месяца — 699 ₽\n"
+            f"• ГОД — 1999 ₽\n\n"
+            f"💡 *СОВЕТ:* Если ты создаешь больше 10 тестов в месяц или хочешь видеть полную статистику — премиум для тебя!")
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_shop_keyboard())
 
@@ -1864,12 +1837,11 @@ async def confirm_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if use_test(user_id, test_id):
-        await query.message.reply_text(
-            f"{WOW_EMOJIS['success']} *Тест отправлен!*\n\n"
-            f"Поделитесь им с подругой через кнопку ниже 👇",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_share_confirm_keyboard(test_id)
-        )
+        text = (f"{WOW_EMOJIS['success']} *Тест отправлен!*\n\n"
+                f"Поделитесь им с подругой через кнопку ниже 👇")
+        
+        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
+                                      reply_markup=get_share_confirm_keyboard(test_id))
     else:
         await query.message.reply_text(
             f"{WOW_EMOJIS['error']} Не удалось списать тест.\n\n"
@@ -2016,11 +1988,11 @@ async def finish_test(query, context, data):
     
     status = get_friendship_status(score)
     
-    text = f"{diplom['icon']} *{diplom['name']}* {diplom['icon']}\n\n"
-    text += f"✨ *Результат:* {score:.1f}%\n\n"
-    text += f"{status}\n\n"
-    text += f"{diplom['text']}\n\n"
-    text += f"*Спасибо за прохождение!*"
+    text = (f"{diplom['icon']} *{diplom['name']}* {diplom['icon']}\n\n"
+            f"✨ *Результат:* {score:.1f}%\n\n"
+            f"{status}\n\n"
+            f"{diplom['text']}\n\n"
+            f"*Спасибо за прохождение!*")
     
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
