@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 48.0 - С МЕХАНИКАМИ УДЕРЖАНИЯ И МОНЕТИЗАЦИИ
+Версия: 49.0 - ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 """
 
 import logging
@@ -35,13 +35,137 @@ MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
 SAVED_TESTS_FREE = 3
 SAVED_TESTS_PREMIUM = 10
-ADMIN_ID = 710623393
+ADMIN_ID = 710623393  # Ваш Telegram ID
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# === ГРУППЫ ВОПРОСОВ ===
+FREE_QUESTION_GROUPS = {
+    'friendship': '👭 Дружба',
+    'love': '💖 Любовь',
+    'humor': '😂 Юмор',
+    'myself': '🌸 О себе'
+}
+
+PREMIUM_QUESTION_GROUPS = {
+    'friendship': '👭 Дружба',
+    'love': '💖 Любовь',
+    'humor': '😂 Юмор',
+    'myself': '🌸 О себе',
+    'family': '🏠 Семья',
+    'school': '📚 Школа',
+    'travel': '✈️ Путешествия',
+    'food': '🍕 Еда',
+    'style': '👗 Стиль',
+    'animals': '🐾 Животные'
+}
+
+QUESTIONS_BY_GROUP = {
+    'friendship': [
+        "Как долго мы дружим?",
+        "Где мы познакомились?",
+        "Какой мой любимый цвет?",
+        "Какая моя любимая еда?",
+        "Какое у меня хобби?",
+        "Какой мой любимый фильм?",
+        "Что меня может разозлить?",
+        "Какая у меня мечта?"
+    ],
+    'love': [
+        "Какой тип парня мне нравится?",
+        "Что для меня важно в отношениях?",
+        "Как я проявляю симпатию?",
+        "Куда я хочу на свидание?",
+        "Что меня влюбляет?",
+        "Какой подарок я хочу получить?",
+        "Как я понимаю, что влюблена?",
+        "Что меня раздражает в парнях?"
+    ],
+    'humor': [
+        "Что я делаю, когда опаздываю?",
+        "Какая у меня самая нелепая привычка?",
+        "Как я танцую?",
+        "Что я ем, когда никто не видит?",
+        "Как я веду себя, когда вру?",
+        "Что я делаю, если увидела таракана?",
+        "Мой самый смешной страх?",
+        "Что я говорю, когда просыпаюсь?"
+    ],
+    'myself': [
+        "Какая моя главная черта характера?",
+        "Что меня вдохновляет?",
+        "Какая у меня суперсила?",
+        "Что мне нужно для счастья?",
+        "Как я справляюсь со стрессом?",
+        "Кем я хочу стать в будущем?",
+        "Что я люблю в себе?",
+        "Мой главный страх?"
+    ],
+    'family': [
+        "Кто мой самый близкий родственник?",
+        "Что я люблю делать с семьей?",
+        "Какая у нас семейная традиция?",
+        "На кого я похожа?",
+        "Что меня бесит в родителях?",
+        "Как я провожу время с мамой?",
+        "Есть ли у меня брат или сестра?",
+        "Что я ценю в своей семье?"
+    ],
+    'school': [
+        "Мой любимый предмет?",
+        "Какой предмет я ненавижу?",
+        "Что я делаю на скучных уроках?",
+        "С кем я сижу за партой?",
+        "Как я списываю?",
+        "Что я ем в столовой?",
+        "Что я делаю на перемене?",
+        "Кого я боюсь в школе?"
+    ],
+    'travel': [
+        "Куда я мечтаю поехать?",
+        "Что я беру в поездку?",
+        "Как я добираюсь до места?",
+        "Что я делаю в дороге?",
+        "Мой идеальный отдых?",
+        "Где я уже была?",
+        "С кем я хочу путешествовать?",
+        "Что я делаю, если потерялась?"
+    ],
+    'food': [
+        "Мое любимое блюдо?",
+        "Что я ненавижу есть?",
+        "Что я умею готовить?",
+        "Что я заказываю в кафе?",
+        "Какие сладости я люблю?",
+        "Что я ем на завтрак?",
+        "Мое любимое кафе?",
+        "Какую еду я никогда не буду есть?"
+    ],
+    'style': [
+        "Мой любимый цвет в одежде?",
+        "Какой стиль я люблю?",
+        "Что я никогда не надену?",
+        "Какой у меня must-have?",
+        "Что я надеваю на вечеринку?",
+        "Какую обувь я предпочитаю?",
+        "Что я делаю с волосами?",
+        "Какой парфюм я люблю?"
+    ],
+    'animals': [
+        "Какое мое любимое животное?",
+        "Есть ли у меня домашний питомец?",
+        "Какое животное я хотела бы завести?",
+        "Боюсь ли я животных?",
+        "Люблю ли я кошек или собак?",
+        "Что я делаю, когда вижу бездомное животное?",
+        "Было ли у меня животное в детстве?",
+        "Какое животное мне кажется самым умным?"
+    ]
+}
 
 # === УРОВНИ И ДОСТИЖЕНИЯ ===
 LEVELS = [
@@ -76,6 +200,51 @@ STREAK_REWARDS = {
     14: {'points': 100, 'tests': 2, 'premium_days': 0},
     30: {'points': 300, 'tests': 0, 'premium_days': 7},
     100: {'points': 1000, 'tests': 0, 'premium_days': 30}
+}
+
+DIPLOMS = {
+    'free': {
+        'name': '📜 Классический диплом',
+        'icon': '📜',
+        'border': '📜📜📜',
+        'color': '🤎',
+        'text': 'Ты прошла тест и показала отличный результат! Продолжай в том же духе!'
+    },
+    'premium_1': {
+        'name': '👑 КОРОЛЕВСКИЙ ДИПЛОМ',
+        'icon': '👑',
+        'border': '✨👑✨',
+        'color': '💛',
+        'text': 'Ты настоящая королева дружбы! Твои знания впечатляют!'
+    },
+    'premium_2': {
+        'name': '💎 АЛМАЗНЫЙ ДИПЛОМ',
+        'icon': '💎',
+        'border': '✨💎✨',
+        'color': '💙',
+        'text': 'Бриллиантовая подруга! Ты сияешь знаниями и заботой!'
+    },
+    'premium_3': {
+        'name': '🌟 ЗВЕЗДНЫЙ ДИПЛОМ',
+        'icon': '🌟',
+        'border': '✨🌟✨',
+        'color': '💜',
+        'text': 'Ты звезда! Твоя дружба освещает путь!'
+    },
+    'premium_4': {
+        'name': '🦄 ВОЛШЕБНЫЙ ДИПЛОМ',
+        'icon': '🦄',
+        'border': '✨🦄✨',
+        'color': '💗',
+        'text': 'Магия твоей дружбы не знает границ! Ты уникальна!'
+    },
+    'premium_5': {
+        'name': '🌸 ЦВЕТОЧНЫЙ ДИПЛОМ',
+        'icon': '🌸',
+        'border': '✨🌸✨',
+        'color': '💖',
+        'text': 'Твоя дружба расцветает с каждым днем! Ты прекрасна!'
+    }
 }
 
 WOW_EMOJIS = {
@@ -243,9 +412,7 @@ def create_user(user_id, username=None, first_name=None, referred_by=None):
                          (referred_by,))
                 c.execute('INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)', 
                          (referred_by, user_id))
-                # Добавляем достижение за приглашение
                 add_achievement(referred_by, 'first_invite')
-                # Добавляем задание
                 complete_daily_task(referred_by, 'invite_friend')
         conn.commit()
         return True
@@ -350,32 +517,27 @@ def check_level_up(user_id):
         return
     
     points = user.get('total_points', 0)
-    current_level = get_rank(points)
     
-    # Проверяем достижения за уровень
     for level in LEVELS:
         if points >= level['min_score'] and level['min_score'] > 0:
             achievement_key = f'level_{level["min_score"]}'
             if not has_achievement(user_id, achievement_key):
                 add_achievement(user_id, achievement_key)
-                # Награда за уровень
-                if 'reward' in level:
-                    if '+1 тест' in level['reward']:
-                        add_tests(user_id, 1)
-                    elif '+2 теста' in level['reward']:
-                        add_tests(user_id, 2)
-                    elif '+3 теста' in level['reward']:
-                        add_tests(user_id, 3)
-                    elif '+5 тестов' in level['reward']:
-                        add_tests(user_id, 5)
-                    elif 'месяц премиума' in level['reward']:
-                        # Даем месяц премиума
-                        unlimited_until = (datetime.now() + timedelta(days=30)).isoformat()
-                        conn = get_db()
-                        c = conn.cursor()
-                        c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (unlimited_until, user_id))
-                        conn.commit()
-                        conn.close()
+                if '+1 тест' in level['reward']:
+                    add_tests(user_id, 1)
+                elif '+2 теста' in level['reward']:
+                    add_tests(user_id, 2)
+                elif '+3 теста' in level['reward']:
+                    add_tests(user_id, 3)
+                elif '+5 тестов' in level['reward']:
+                    add_tests(user_id, 5)
+                elif 'месяц премиума' in level['reward']:
+                    unlimited_until = (datetime.now() + timedelta(days=30)).isoformat()
+                    conn = get_db()
+                    c = conn.cursor()
+                    c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (unlimited_until, user_id))
+                    conn.commit()
+                    conn.close()
 
 def is_premium(user_id):
     user = get_user(user_id)
@@ -414,7 +576,6 @@ def get_daily_bonus(user_id):
             
             bonus = DAILY_BONUS_POINTS
             
-            # Проверяем награды за стрик
             if streak in STREAK_REWARDS:
                 reward = STREAK_REWARDS[streak]
                 bonus += reward['points']
@@ -423,7 +584,6 @@ def get_daily_bonus(user_id):
                 if reward['premium_days'] > 0:
                     unlimited_until = (datetime.now() + timedelta(days=reward['premium_days'])).isoformat()
                     c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (unlimited_until, user_id))
-                # Добавляем достижение
                 add_achievement(user_id, f'streak_{streak}')
             
             c.execute('UPDATE users SET total_points = total_points + ?, last_daily = ?, daily_streak = ? WHERE user_id = ?',
@@ -451,9 +611,7 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         test_id = c.lastrowid
         c.execute('UPDATE users SET tests_created = tests_created + 1 WHERE user_id = ?', (creator_id,))
         conn.commit()
-        # Добавляем достижение за создание теста
         add_achievement(creator_id, 'first_test')
-        # Добавляем задание
         complete_daily_task(creator_id, 'create_test')
         return test_id
     except Exception as e:
@@ -563,11 +721,9 @@ def save_attempt(test_id, friend_id, friend_name, friend_username, answers, scor
             (test_id, friend_id, friend_name, friend_username, json.dumps(answers), score))
         c.execute('UPDATE tests SET shares = shares + 1 WHERE id = ?', (test_id,))
         conn.commit()
-        # Добавляем задание для создателя теста
         test = get_test_by_id(test_id)
         if test:
             complete_daily_task(test['creator_id'], 'get_result')
-        # Добавляем задание для прошедшего
         complete_daily_task(friend_id, 'complete_test')
         return True
     except Exception as e:
@@ -602,7 +758,11 @@ def get_achievements(user_id):
     try:
         c = conn.cursor()
         c.execute('SELECT achievement_type, achieved_at FROM achievements WHERE user_id = ? ORDER BY achieved_at DESC', (user_id,))
-        return c.fetchall()
+        rows = c.fetchall()
+        result = []
+        for row in rows:
+            result.append(dict(row))
+        return result
     finally:
         conn.close()
 
@@ -638,7 +798,6 @@ def complete_daily_task(user_id, task_type):
                      ON CONFLICT(user_id, task_date, task_type) DO UPDATE SET completed = 1''',
                   (user_id, today, task_type))
         conn.commit()
-        # Добавляем очки за задание
         if task_type in DAILY_TASKS:
             add_points(user_id, DAILY_TASKS[task_type]['points'])
         return True
@@ -652,14 +811,11 @@ def purchase_item(user_id, item_type):
         return False
     
     item = PREMIUM_SHOP_ITEMS[item_type]
-    # Здесь должна быть интеграция с платежной системой
-    # Пока просто записываем покупку
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute('INSERT INTO purchases (user_id, item_type, price) VALUES (?, ?, ?)', 
                  (user_id, item_type, item['price']))
-        # Активируем предмет
         if item_type.startswith('frame_'):
             c.execute('UPDATE users SET selected_frame = ? WHERE user_id = ?', (item_type, user_id))
         elif item_type == 'vip_badge':
@@ -690,7 +846,7 @@ def apply_promocode(user_id, code):
             add_tests(user_id, reward_value)
         elif reward_type == 'points':
             add_points(user_id, reward_value)
-        elif reward_type == 'premium_days':
+        elif reward_type == 'premium':
             unlimited_until = (datetime.now() + timedelta(days=reward_value)).isoformat()
             c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (unlimited_until, user_id))
         
@@ -702,12 +858,65 @@ def apply_promocode(user_id, code):
     finally:
         conn.close()
 
-def get_top_users(limit=10):
+def get_top_users(limit=20):
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute('SELECT user_id, first_name, username, total_points FROM users ORDER BY total_points DESC LIMIT ?', (limit,))
-        return c.fetchall()
+        rows = c.fetchall()
+        result = []
+        for row in rows:
+            result.append(dict(row))
+        return result
+    finally:
+        conn.close()
+
+def get_attempts_stats(user_id, test_id=None):
+    """Получить статистику по попыткам прохождения тестов"""
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        if test_id:
+            c.execute('''SELECT friend_id, friend_name, friend_username, score, completed_at 
+                         FROM attempts WHERE test_id = ? ORDER BY score DESC''', (test_id,))
+            rows = c.fetchall()
+            result = []
+            for row in rows:
+                result.append(dict(row))
+            return result
+        else:
+            c.execute('''SELECT a.test_id, t.title, COUNT(a.id) as attempts_count, AVG(a.score) as avg_score
+                         FROM attempts a
+                         JOIN tests t ON a.test_id = t.id
+                         WHERE t.creator_id = ?
+                         GROUP BY a.test_id
+                         ORDER BY avg_score DESC''', (user_id,))
+            rows = c.fetchall()
+            result = []
+            for row in rows:
+                result.append(dict(row))
+            return result
+    finally:
+        conn.close()
+
+def get_attempt_details(test_id, friend_id):
+    """Получить детали конкретной попытки"""
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('''SELECT a.answers, a.score, a.completed_at, t.questions, t.options, t.correct_answers, t.title
+                     FROM attempts a
+                     JOIN tests t ON a.test_id = t.id
+                     WHERE a.test_id = ? AND a.friend_id = ?''', (test_id, friend_id))
+        row = c.fetchone()
+        if row:
+            result = dict(row)
+            result['answers'] = json.loads(result['answers']) if result['answers'] else []
+            result['questions'] = json.loads(result['questions']) if result['questions'] else []
+            result['options'] = json.loads(result['options']) if result['options'] else []
+            result['correct_answers'] = json.loads(result['correct_answers']) if result['correct_answers'] else []
+            return result
+        return None
     finally:
         conn.close()
 
@@ -722,6 +931,28 @@ def get_friendship_status(score):
     if score >= 25: return "😅 ШАТКОЕ ЗНАКОМСТВО"
     if score >= 15: return "🤨 СЛУЧАЙНЫЕ ПРОХОЖИЕ"
     return "😱 КТО ВЫ ТАКИЕ?"
+
+def get_next_level_points(current_points):
+    for level in LEVELS:
+        if level['min_score'] > current_points:
+            return level['min_score'] - current_points
+    return 0
+
+def update_selected_diplom(user_id, diplom_key):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('UPDATE users SET selected_diplom = ? WHERE user_id = ?', (diplom_key, user_id))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+def get_selected_diplom(user_id):
+    user = get_user(user_id)
+    if user:
+        return user.get('selected_diplom', 'free')
+    return 'free'
 
 # === КЛАВИАТУРЫ ===
 def get_main_keyboard():
@@ -892,6 +1123,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💖 *Поехали!* 👇")
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
+# Далее идут все остальные хендлеры (create_test_start, cancel_creation, handle_create_test, show_current_question, next_question, select_current_question, select_question_group, premium_group_click, add_option, back_to_questions, finish_options, select_correct_answer, show_next_question, finish_creation, finish_creation_from_callback)
+
+# Из-за ограничения длины сообщения, я продолжу в следующем сообщении...
 async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     available = get_available_tests(user_id)
@@ -1386,7 +1620,6 @@ async def finish_creation_from_callback(query, context, user_id):
 
 # === НОВЫЕ ХЕНДЛЕРЫ ДЛЯ МЕХАНИК УДЕРЖАНИЯ ===
 async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать ежедневные задания"""
     user_id = update.effective_user.id
     tasks = get_daily_tasks(user_id)
     
@@ -1409,7 +1642,6 @@ async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать достижения пользователя"""
     user_id = update.effective_user.id
     achievements = get_achievements(user_id)
     
@@ -1440,7 +1672,6 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать рейтинг пользователей"""
     user_id = update.effective_user.id
     top_users = get_top_users(20)
     user = get_user(user_id)
@@ -1462,7 +1693,6 @@ async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{medal} {i}. *{name}* — {u['total_points']} ⭐\n"
     
     if user:
-        # Найти место пользователя
         conn = get_db()
         c = conn.cursor()
         c.execute('SELECT COUNT(*) + 1 FROM users WHERE total_points > ?', (user['total_points'],))
@@ -1475,14 +1705,7 @@ async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
-def get_next_level_points(current_points):
-    for level in LEVELS:
-        if level['min_score'] > current_points:
-            return level['min_score'] - current_points
-    return 0
-
 async def premium_shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать премиум-магазин"""
     query = update.callback_query
     await query.answer()
     
@@ -1497,7 +1720,6 @@ async def premium_shop_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_shop_keyboard())
 
 async def buy_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Покупка предмета из премиум-магазина"""
     query = update.callback_query
     await query.answer()
     
@@ -1524,8 +1746,6 @@ async def buy_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     item = PREMIUM_SHOP_ITEMS[item_key]
     
-    # Здесь должна быть интеграция с платежной системой
-    # Пока просто подтверждаем покупку
     text = (f"{item['icon']} *{item['name']}* — {item['price']} ₽\n\n"
             f"✨ *Отличный выбор!*\n\n"
             f"💰 Для оплаты напишите @LavaTopBot\n\n"
@@ -1534,7 +1754,6 @@ async def buy_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 async def promocode_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Активация промокода"""
     user_id = update.effective_user.id
     
     if not context.args or len(context.args) == 0:
@@ -1691,7 +1910,6 @@ async def share_saved_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
                                       reply_markup=get_share_confirm_keyboard(test_id))
-        # Добавляем задание
         complete_daily_task(user_id, 'send_test')
     else:
         await query.message.reply_text(
@@ -1962,7 +2180,6 @@ async def confirm_share(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN,
                                       reply_markup=get_share_confirm_keyboard(test_id))
-        # Добавляем задание
         complete_daily_task(user_id, 'send_test')
     else:
         await query.message.reply_text(
@@ -2236,43 +2453,86 @@ async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/setpremium @username - выдать премиум на 30 дней\n"
             "/setpremium @username 90 - выдать на 90 дней\n"
             "/setpremium @username 365 - выдать на год\n"
+            "/setpremium user_id - выдать по ID\n"
             "/removepremium @username - снять премиум\n"
             "/checkpremium @username - проверить статус\n"
             "/addtests @username 5 - добавить тесты\n"
             "/addpoints @username 100 - добавить очки\n"
-            "/createpromo tests 5 - создать промокод на 5 тестов",
+            "/createpromo tests 5 - создать промокод\n"
+            "/users - список всех пользователей",
             parse_mode=ParseMode.MARKDOWN
         )
         return
     
     try:
         action = context.args[0]
+        target_id = None
+        target_name = None
         
         if action.startswith('@'):
             username = action[1:]
             conn = get_db()
             c = conn.cursor()
-            c.execute('SELECT user_id FROM users WHERE username = ?', (username,))
+            c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (username,))
             row = c.fetchone()
             conn.close()
             if not row:
-                await update.message.reply_text(f"❌ Пользователь @{username} не найден!")
+                await update.message.reply_text(
+                    f"❌ Пользователь @{username} не найден в базе!\n\n"
+                    f"💡 *Решение:* Попросите пользователя запустить бота командой /start"
+                )
                 return
             target_id = row['user_id']
+            target_name = row['first_name']
         elif action.isdigit():
             target_id = int(action)
+            conn = get_db()
+            c = conn.cursor()
+            c.execute('SELECT first_name FROM users WHERE user_id = ?', (target_id,))
+            row = c.fetchone()
+            conn.close()
+            if not row:
+                await update.message.reply_text(f"❌ Пользователь с ID {target_id} не найден!")
+                return
+            target_name = row['first_name']
+        elif action == 'users':
+            conn = get_db()
+            c = conn.cursor()
+            c.execute('SELECT user_id, first_name, username, total_points, unlimited_until FROM users ORDER BY total_points DESC LIMIT 20')
+            rows = c.fetchall()
+            conn.close()
+            text = "👥 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ*\n\n"
+            for i, row in enumerate(rows, 1):
+                name = row['first_name'] or f"ID {row['user_id']}"
+                username = f"(@{row['username']})" if row['username'] else ''
+                premium = "💎" if row['unlimited_until'] and datetime.fromisoformat(row['unlimited_until']) > datetime.now() else ""
+                text += f"{i}. {name} {username} — {row['total_points']}⭐ {premium}\n"
+            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+            return
         else:
-            if action == 'setpremium':
-                await update.message.reply_text("❌ Укажите пользователя: /setpremium @username")
+            if action in ['setpremium', 'removepremium', 'checkpremium', 'addtests', 'addpoints']:
+                await update.message.reply_text(f"❌ Укажите пользователя: /{action} @username")
                 return
-            elif action == 'removepremium':
-                await update.message.reply_text("❌ Укажите пользователя: /removepremium @username")
-                return
-            elif action == 'checkpremium':
-                await update.message.reply_text("❌ Укажите пользователя: /checkpremium @username")
-                return
-            elif action == 'addtests' or action == 'addpoints':
-                await update.message.reply_text(f"❌ Укажите пользователя: /{action} @username количество")
+            elif action == 'createpromo':
+                if len(context.args) < 3:
+                    await update.message.reply_text("❌ Использование: /createpromo tests 5\nИли: /createpromo points 100\nИли: /createpromo premium 30")
+                    return
+                reward_type = context.args[1]
+                reward_value = int(context.args[2])
+                code = f"{reward_type.upper()}{random.randint(10000, 99999)}"
+                expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+                conn = get_db()
+                c = conn.cursor()
+                c.execute('INSERT INTO promocodes (code, reward_type, reward_value, expires_at) VALUES (?, ?, ?, ?)',
+                         (code, reward_type, reward_value, expires_at))
+                conn.commit()
+                conn.close()
+                await update.message.reply_text(
+                    f"✅ Создан промокод: `{code}`\n"
+                    f"🎁 Награда: {reward_value} {reward_type}\n"
+                    f"📅 Действителен 30 дней",
+                    parse_mode=ParseMode.MARKDOWN
+                )
                 return
             else:
                 await update.message.reply_text(f"❌ Неизвестная команда: {action}")
@@ -2288,7 +2548,7 @@ async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (unlimited_until, target_id))
             conn.commit()
             conn.close()
-            await update.message.reply_text(f"✅ Пользователю выдан премиум на {days} дней!")
+            await update.message.reply_text(f"✅ Пользователю *{target_name}* выдан премиум на {days} дней!")
             
         elif action == 'removepremium':
             conn = get_db()
@@ -2296,18 +2556,18 @@ async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_id,))
             conn.commit()
             conn.close()
-            await update.message.reply_text("✅ Премиум удален!")
+            await update.message.reply_text(f"✅ Премиум у *{target_name}* удален!")
             
         elif action == 'checkpremium':
             user = get_user(target_id)
             if user and user.get('unlimited_until'):
                 until = datetime.fromisoformat(user['unlimited_until'])
                 if until > datetime.now():
-                    await update.message.reply_text(f"✅ Пользователь имеет премиум до {until.strftime('%d.%m.%Y')}")
+                    await update.message.reply_text(f"✅ *{target_name}* имеет премиум до {until.strftime('%d.%m.%Y')}")
                 else:
-                    await update.message.reply_text("❌ Премиум истек")
+                    await update.message.reply_text(f"❌ Премиум у *{target_name}* истек")
             else:
-                await update.message.reply_text("❌ У пользователя нет премиум подписки")
+                await update.message.reply_text(f"❌ У *{target_name}* нет премиум подписки")
         
         elif action == 'addtests':
             if len(context.args) < 2 or not context.args[1].isdigit():
@@ -2315,7 +2575,7 @@ async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             count = int(context.args[1])
             add_tests(target_id, count)
-            await update.message.reply_text(f"✅ Добавлено {count} тестов пользователю!")
+            await update.message.reply_text(f"✅ Добавлено {count} тестов пользователю *{target_name}*!")
             
         elif action == 'addpoints':
             if len(context.args) < 2 or not context.args[1].isdigit():
@@ -2323,23 +2583,7 @@ async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
             count = int(context.args[1])
             add_points(target_id, count)
-            await update.message.reply_text(f"✅ Добавлено {count} очков пользователю!")
-            
-        elif action == 'createpromo':
-            if len(context.args) < 3:
-                await update.message.reply_text("❌ Использование: /createpromo tests 5\nИли: /createpromo points 100\nИли: /createpromo premium 30")
-                return
-            reward_type = context.args[1]
-            reward_value = int(context.args[2])
-            code = f"{reward_type.upper()}{random.randint(10000, 99999)}"
-            expires_at = (datetime.now() + timedelta(days=30)).isoformat()
-            conn = get_db()
-            c = conn.cursor()
-            c.execute('INSERT INTO promocodes (code, reward_type, reward_value, expires_at) VALUES (?, ?, ?, ?)',
-                     (code, reward_type, reward_value, expires_at))
-            conn.commit()
-            conn.close()
-            await update.message.reply_text(f"✅ Создан промокод: `{code}`\nНаграда: {reward_value} {reward_type}\nДействителен 30 дней", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(f"✅ Добавлено {count} очков пользователю *{target_name}*!")
             
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -2354,6 +2598,7 @@ def main():
     app.add_handler(CommandHandler("addtests", admin_set_premium))
     app.add_handler(CommandHandler("addpoints", admin_set_premium))
     app.add_handler(CommandHandler("createpromo", admin_set_premium))
+    app.add_handler(CommandHandler("users", admin_set_premium))
     app.add_handler(CommandHandler("promocode", promocode_handler))
     
     app.add_handler(MessageHandler(filters.Regex(f"^{WOW_EMOJIS['test']} Создать тест$"), create_test_start))
