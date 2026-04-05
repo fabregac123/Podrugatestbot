@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 60.0 - ПОЛНАЯ ВЕРСИЯ СО ВСЕМИ ИСПРАВЛЕНИЯМИ
+Версия: 61.0 - ИСПРАВЛЕНИЯ СТАТИСТИКИ
 """
 
 import logging
@@ -659,8 +659,13 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         conn.close()
 
 def get_user_created_tests_count(user_id):
-    user = get_user(user_id)
-    return user.get('tests_created', 0) if user else 0
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM tests WHERE creator_id = ?', (user_id,))
+        return c.fetchone()[0]
+    finally:
+        conn.close()
 
 def can_create_test(user_id):
     created_count = get_user_created_tests_count(user_id)
@@ -898,6 +903,31 @@ def get_user_full_stats(user_id):
             'invited': user['referral_count'] if user else 0,
             'passed': tests_passed
         }
+    finally:
+        conn.close()
+
+def get_friend_answers_details(user_id, friend_id):
+    """Получить детальные ответы подруги на все тесты"""
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('''
+            SELECT t.id, t.title, t.questions, t.options, t.correct_answers,
+                   a.answers, a.score, a.completed_at
+            FROM attempts a
+            JOIN tests t ON a.test_id = t.id
+            WHERE t.creator_id = ? AND a.friend_id = ?
+            ORDER BY a.completed_at DESC
+        ''', (user_id, friend_id))
+        results = []
+        for row in c.fetchall():
+            result = dict(row)
+            result['questions'] = json.loads(result['questions'])
+            result['options'] = json.loads(result['options'])
+            result['correct_answers'] = json.loads(result['correct_answers'])
+            result['answers'] = json.loads(result['answers'])
+            results.append(result)
+        return results
     finally:
         conn.close()
 
@@ -1597,9 +1627,9 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = (f"👑✨ *МОИ ТЕСТИКИ* ✨👑\n\n")
     if created:
-        text += f"📝 *Создано мной:* {len(created)}/{MAX_CREATED_PREMIUM if is_premium(user_id) else MAX_CREATED_FREE}\n"
+        text += f"📝 *Создано мной:* {len(created)}\n"
     if saved:
-        text += f"⭐ *Сохранено:* {len(saved)}/{MAX_SAVED_PREMIUM if is_premium(user_id) else MAX_SAVED_FREE}\n"
+        text += f"⭐ *Сохранено:* {len(saved)}\n"
     if not created and not saved:
         text += "🌸 *У тебя пока нет тестиков* 🌸\n\nСоздай свой первый тест или сохрани чужой!"
     
@@ -1805,19 +1835,15 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
-async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.callback_query:
-        query = update.callback_query
-        await query.answer()
-        message = query.message
-    else:
-        message = update.message
+async def top_rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Топ-10 рейтинга пользователей"""
+    query = update.callback_query
+    await query.answer()
     
-    user_id = update.effective_user.id
     top_users = get_top_users_full(10)
-    my_stats = get_user_full_stats(user_id)
+    my_stats = get_user_full_stats(query.from_user.id)
     
-    text = (f"🏆✨ *ТОП-10 ПОДРУЖЕК* ✨🏆\n\n")
+    text = (f"🏆✨ *ТОП-10 РЕЙТИНГА* ✨🏆\n\n")
     
     for i, u in enumerate(top_users, 1):
         if i == 1:
@@ -1851,22 +1877,149 @@ async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         conn.close()
     
-    if update.callback_query:
-        await message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
-    else:
-        await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
 
-async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user = get_user(user_id)
-    if not user:
+async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Топ подруг, проходивших твои тесты"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    has_premium = is_premium(user_id)
+    
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('''
+            SELECT a.friend_id, a.friend_name, a.friend_username, 
+                   AVG(a.score) as avg_score, COUNT(a.id) as tests_count
+            FROM attempts a
+            WHERE a.test_id IN (SELECT id FROM tests WHERE creator_id = ?)
+            GROUP BY a.friend_id
+            ORDER BY avg_score DESC
+            LIMIT 20
+        ''', (user_id,))
+        friends = c.fetchall()
+    finally:
+        conn.close()
+    
+    if not friends:
+        await query.message.reply_text(
+            "👭✨ *ТОП ПОДРУЖЕК* ✨👭\n\n"
+            "🌸 *Пока никто не проходил твои тестики* 🌸\n\n"
+            "Создай тест и отправь подружкам! 💕",
+            parse_mode=ParseMode.MARKDOWN
+        )
         return
     
-    points = user.get('total_points', 0)
+    text = (f"👭✨ *ТВОЙ ТОП ПОДРУЖЕК* ✨👭\n\n")
+    
+    keyboard = []
+    for i, friend in enumerate(friends, 1):
+        if i == 1:
+            medal = "🥇"
+        elif i == 2:
+            medal = "🥈"
+        elif i == 3:
+            medal = "🥉"
+        else:
+            medal = "💕"
+        
+        name = friend['friend_name'] or 'Подружка'
+        username = f"(@{friend['friend_username']})" if friend['friend_username'] else ''
+        text += f"{medal} *{name}* {username}\n"
+        text += f"   📊 Средний балл: {friend['avg_score']:.0f}%\n"
+        text += f"   📝 Прошла тестов: {friend['tests_count']}\n\n"
+        
+        if has_premium:
+            keyboard.append([InlineKeyboardButton(
+                f"📊 Ответы {name}", 
+                callback_data=f"friend_all_answers_{friend['friend_id']}"
+            )])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_stats")])
+    
+    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, 
+                                  reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def show_friend_all_answers(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать все ответы подруги на все тесты"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    friend_id = int(query.data.split("_")[3])
+    
+    if not is_premium(user_id):
+        await query.message.reply_text(
+            "💎 *Только для ПРЕМИУМ!* 💎\n\n"
+            "Купи премиум, чтобы видеть детальные ответы подружек!",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍️ Купить премиум", callback_data="shop")]])
+        )
+        return
+    
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT friend_name, friend_username FROM attempts WHERE friend_id = ? LIMIT 1', (friend_id,))
+        friend_info = c.fetchone()
+    finally:
+        conn.close()
+    
+    friend_name = friend_info['friend_name'] if friend_info else 'Подружка'
+    friend_username = f"(@{friend_info['friend_username']})" if friend_info and friend_info['friend_username'] else ''
+    
+    answers_details = get_friend_answers_details(user_id, friend_id)
+    
+    if not answers_details:
+        await query.message.reply_text("💔 *Нет данных об ответах*", parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    text = (f"📝✨ *ОТВЕТЫ ПОДРУЖКИ* ✨📝\n\n"
+            f"👤 *{friend_name}* {friend_username}\n"
+            f"📊 *Всего тестов пройдено:* {len(answers_details)}\n\n")
+    
+    for test in answers_details[:3]:
+        text += f"📋 *Тест:* {test['title']}\n"
+        text += f"🎯 *Результат:* {test['score']:.0f}%\n"
+        text += f"📅 *Дата:* {test['completed_at'][:10]}\n\n"
+        
+        for i, q in enumerate(test['questions'][:5]):
+            if i < len(test['answers']) and test['answers'][i] < len(test['options'][i]):
+                user_answer = test['options'][i][test['answers'][i]]
+                is_correct = test['answers'][i] == test['correct_answers'][i]
+                mark = "✅" if is_correct else "❌"
+                text += f"{mark} *Вопрос {i+1}:* {user_answer}\n"
+            else:
+                text += f"❓ *Вопрос {i+1}:* нет ответа\n"
+        
+        if len(test['questions']) > 5:
+            text += f"... и ещё {len(test['questions'])-5} вопросов\n"
+        text += "\n" + "─" * 30 + "\n\n"
+        
+        if len(text) > 3500:
+            text += "\n... и ещё результаты (слишком много)"
+            break
+    
+    if len(answers_details) > 3:
+        text += f"\n✨ *И ещё {len(answers_details)-3} тестов*\n"
+    
+    keyboard = [[InlineKeyboardButton("🔙 Назад к подружкам", callback_data="top_friends")]]
+    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+
+async def back_to_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Вернуться к статистике"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    user = get_user(user_id)
+    points = user.get('total_points', 0) if user else 0
     rank = get_rank(points)
-    streak = user.get('daily_streak', 0)
-    created = user.get('tests_created', 0)
-    referrals = user.get('referral_count', 0)
+    streak = user.get('daily_streak', 0) if user else 0
+    created = user.get('tests_created', 0) if user else 0
+    referrals = user.get('referral_count', 0) if user else 0
     tests_left = get_available_tests(user_id)
     has_premium = is_premium(user_id)
     saved_count = get_saved_tests_count(user_id)
@@ -1892,164 +2045,24 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             premium_text = f"\n💎 *Премиум до:* {expiry.strftime('%d.%m.%Y')}"
     
     text = (f"📊✨ *ТВОЯ СТАТИСТИКА* ✨📊\n\n"
-            f"👤 *Имя:* {user.get('first_name', 'Подружка')}\n"
+            f"👤 *Имя:* {user.get('first_name', 'Подружка') if user else 'Подружка'}\n"
             f"🏆 *Ранг:* {rank['name']}\n"
             f"⭐ *Очки:* {points}\n"
             f"📊 *Место:* {rating}\n"
             f"🔥 *Серия:* {streak} дней\n"
             f"🎯 *До след. ранга:* {get_next_level_points(points)} очков{premium_text}\n\n"
-            f"📝 *Создано тестов:* {created}/{max_created}\n"
+            f"📝 *Создано тестов:* {created}\n"
             f"🎯 *Пройдено тестов:* {passed}\n"
             f"👭 *Приглашено подруг:* {referrals}\n"
-            f"📦 *Сохранено тестов:* {saved_count}/{max_saved}\n"
+            f"📦 *Сохранено тестов:* {saved_count}\n"
             f"🎁 *Доступно:* {tests_text}")
     
     keyboard = [
-        [InlineKeyboardButton("🏆 Топ подруг", callback_data="top_friends")],
-        [InlineKeyboardButton("🏆 Топ-10 подружек", callback_data="rating")],
+        [InlineKeyboardButton("🏆 Топ-10 рейтинга", callback_data="top_rating")],
+        [InlineKeyboardButton("👭 Топ подруг", callback_data="top_friends")]
     ]
     
-    if has_premium:
-        keyboard.append([InlineKeyboardButton("📊 Детальная статистика", callback_data="detailed_stats")])
-    
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def detailed_stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    if not is_premium(query.from_user.id):
-        await query.message.reply_text(
-            "💎 *Только для ПРЕМИУМ!* 💎\n\n"
-            "🌟 *Оформи премиум и получи:*\n"
-            "• Детальные ответы каждой подружки\n"
-            "• Кто и как ответил на каждый вопрос\n"
-            "• Полную аналитику тестов\n\n"
-            "👇 *Купить премиум* 👇",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍️ В МАГАЗИН", callback_data="shop")]])
-        )
-        return
-    
-    user_id = query.from_user.id
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('''SELECT t.id, t.title
-                     FROM tests t
-                     WHERE t.creator_id = ?
-                     ORDER BY t.created_at DESC''', (user_id,))
-        tests = c.fetchall()
-    finally:
-        conn.close()
-    
-    if not tests:
-        await query.message.reply_text("📊 *Статистика пока пуста*\n\nСоздай тест и отправь подружкам! 🌸", parse_mode=ParseMode.MARKDOWN)
-        return
-    
-    text = f"📊✨ *ДЕТАЛЬНАЯ СТАТИСТИКА* ✨📊\n\nВыбери тест:\n\n"
-    
-    keyboard = []
-    for test in tests:
-        keyboard.append([InlineKeyboardButton(f"📝 {test['title'][:30]}", callback_data=f"test_friends_{test['id']}")])
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_stats")])
-    
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def show_test_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    test_id = int(query.data.split("_")[2])
-    test = get_test_by_id(test_id)
-    
-    if not test:
-        await query.message.reply_text("💔 *Тест не найден*", parse_mode=ParseMode.MARKDOWN)
-        return
-    
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('''SELECT friend_id, friend_name, friend_username, score, completed_at
-                     FROM attempts
-                     WHERE test_id = ?
-                     ORDER BY score DESC''', (test_id,))
-        attempts = c.fetchall()
-    finally:
-        conn.close()
-    
-    if not attempts:
-        await query.message.reply_text(f"📊 *{test['title']}*\n\nПока никто не проходил этот тест", parse_mode=ParseMode.MARKDOWN)
-        return
-    
-    text = f"📊✨ *{test['title']}* ✨📊\n\n👭 *Кто проходил:*\n\n"
-    
-    keyboard = []
-    for att in attempts:
-        name = att['friend_name'] or 'Подружка'
-        username = f"(@{att['friend_username']})" if att['friend_username'] else ''
-        text += f"💕 *{name}* {username}\n"
-        text += f"   🎯 Результат: {att['score']:.0f}%\n"
-        text += f"   📅 {att['completed_at'][:10]}\n\n"
-        keyboard.append([InlineKeyboardButton(f"📝 Ответы {name}", callback_data=f"friend_answers_{test_id}_{att['friend_id']}")])
-    
-    keyboard.append([InlineKeyboardButton("🔙 Назад к тестам", callback_data="detailed_stats")])
-    
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def show_friend_answers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    parts = query.data.split("_")
-    test_id = int(parts[2])
-    friend_id = int(parts[3])
-    
-    test = get_test_by_id(test_id)
-    if not test:
-        await query.message.reply_text("💔 *Тест не найден*", parse_mode=ParseMode.MARKDOWN)
-        return
-    
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('''SELECT friend_name, friend_username, answers, score
-                     FROM attempts
-                     WHERE test_id = ? AND friend_id = ?''', (test_id, friend_id))
-        attempt = c.fetchone()
-    finally:
-        conn.close()
-    
-    if not attempt:
-        await query.message.reply_text("💔 *Результат не найден*", parse_mode=ParseMode.MARKDOWN)
-        return
-    
-    answers = json.loads(attempt['answers'])
-    name = attempt['friend_name'] or 'Подружка'
-    
-    text = (f"📝✨ *Ответы {name}* ✨📝\n\n"
-            f"📋 *Тест:* {test['title']}\n"
-            f"🎯 *Результат:* {attempt['score']:.0f}%\n\n"
-            f"*Ответы на вопросы:*\n\n")
-    
-    for i, q in enumerate(test['questions']):
-        if i < len(answers) and answers[i] < len(test['options'][i]):
-            text += f"*{i+1}. {q}*\n"
-            text += f"   💕 Ответ: {test['options'][i][answers[i]]}\n"
-            if test['correct_answers'][i] == answers[i]:
-                text += f"   ✅ Правильно!\n"
-            else:
-                correct_ans = test['options'][i][test['correct_answers'][i]]
-                text += f"   ❌ Правильно: {correct_ans}\n"
-            text += "\n"
-    
-    keyboard = [[InlineKeyboardButton("🔙 Назад к списку", callback_data=f"test_friends_{test_id}")]]
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
-
-async def back_to_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await detailed_stats_handler(update, context)
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2348,54 +2361,6 @@ async def finish_test(query, context, data):
     
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
-async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('''
-            SELECT a.friend_name, a.friend_username, AVG(a.score) as avg, COUNT(a.id) as cnt
-            FROM attempts a
-            WHERE a.test_id IN (SELECT id FROM tests WHERE creator_id = ?)
-            GROUP BY a.friend_id
-            ORDER BY avg DESC
-            LIMIT 10
-        ''', (user_id,))
-        rows = c.fetchall()
-    finally:
-        conn.close()
-    
-    if not rows:
-        await query.message.reply_text(
-            "👭✨ *ТОП ПОДРУЖЕК* ✨👭\n\n"
-            "🌸 *Пока никто не проходил твои тестики* 🌸\n\n"
-            "Создай тест и отправь подружкам! 💕",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-    
-    text = (f"👭✨ *ТВОЙ ТОП ПОДРУЖЕК* ✨👭\n\n")
-    
-    for i, row in enumerate(rows, 1):
-        if i == 1:
-            medal = "🥇"
-        elif i == 2:
-            medal = "🥈"
-        elif i == 3:
-            medal = "🥉"
-        else:
-            medal = "💕"
-        
-        name = row['friend_name'] or 'Подружка'
-        username = f"(@{row['friend_username']})" if row['friend_username'] else ''
-        text += f"{medal} *{name}* {username}\n"
-        text += f"   📊 *{row['avg']:.0f}%* | 📝 {row['cnt']} тестов\n\n"
-    
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
-
 # === АДМИН-КОМАНДЫ ===
 async def is_admin(user_id):
     return user_id == ADMIN_ID
@@ -2668,16 +2633,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await take_test_answer(update, context)
     
     # Статистика
+    elif data == "top_rating":
+        await top_rating_handler(update, context)
     elif data == "top_friends":
         await top_friends_handler(update, context)
-    elif data == "rating":
-        await rating_handler(update, context)
-    elif data == "detailed_stats":
-        await detailed_stats_handler(update, context)
-    elif data.startswith("test_friends_"):
-        await show_test_friends(update, context)
-    elif data.startswith("friend_answers_"):
-        await show_friend_answers(update, context)
+    elif data.startswith("friend_all_answers_"):
+        await show_friend_all_answers(update, context)
     elif data == "back_to_stats":
         await back_to_stats(update, context)
     
