@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 55.0 - ВСЁ ИСПРАВЛЕНО!
+Версия: 56.0 - ВСЁ ИСПРАВЛЕНО!
 """
 
 import logging
@@ -521,7 +521,7 @@ def get_available_tests(user_id):
     if user.get('unlimited_until'):
         try:
             if datetime.fromisoformat(user['unlimited_until']) > datetime.now():
-                return -1  # -1 означает безлимит
+                return -1
         except:
             pass
     return user.get('tests_available', START_TESTS)
@@ -615,7 +615,6 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         conn.commit()
         invalidate_test_cache(test_id)
         
-        # Начисляем очки за создание теста
         add_points(creator_id, 20)
         complete_daily_task(creator_id, 'create_test')
         add_achievement(creator_id, 'first_test')
@@ -664,7 +663,7 @@ def get_saved_tests(user_id):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute('''SELECT t.id, t.title, t.creator_name, t.creator_id
+        c.execute('''SELECT t.id, t.title, t.creator_name, t.creator_id, t.creator_username
                      FROM saved_tests s 
                      JOIN tests t ON s.test_id = t.id 
                      WHERE s.user_id = ? AND t.creator_id != ?
@@ -694,17 +693,14 @@ def save_attempt(test_id, friend_id, friend_name, friend_username, answers, scor
         
         test = get_test_by_id(test_id)
         if test:
-            # Начисляем очки автору за результат
             add_points(test['creator_id'], 15)
             complete_daily_task(test['creator_id'], 'get_result')
             
-            # Отправляем уведомление автору
             if bot:
                 asyncio.create_task(
                     send_test_completed_notification(bot, test['creator_id'], friend_name, test['title'], score)
                 )
         
-        # Начисляем очки прошедшему тест
         add_points(friend_id, int(score))
         complete_daily_task(friend_id, 'complete_test')
         
@@ -768,13 +764,11 @@ def get_daily_tasks(user_id):
         conn.close()
 
 def complete_daily_task(user_id, task_type):
-    """Отметить задание выполненным и начислить очки"""
     conn = get_db()
     try:
         c = conn.cursor()
         today = datetime.now().date().isoformat()
         
-        # Проверяем, не выполнено ли уже
         c.execute('SELECT completed FROM daily_tasks WHERE user_id = ? AND task_date = ? AND task_type = ?', 
                  (user_id, today, task_type))
         row = c.fetchone()
@@ -782,13 +776,11 @@ def complete_daily_task(user_id, task_type):
         if row and row['completed']:
             return False
         
-        # Отмечаем выполненным
         c.execute('''INSERT INTO daily_tasks (user_id, task_date, task_type, completed) 
                      VALUES (?, ?, ?, 1) 
                      ON CONFLICT(user_id, task_date, task_type) DO UPDATE SET completed = 1''',
                   (user_id, today, task_type))
         
-        # Начисляем очки
         if task_type in DAILY_TASKS:
             points = DAILY_TASKS[task_type]['points']
             add_points(user_id, points)
@@ -1513,7 +1505,6 @@ async def finish_creation(query_or_update, context, user_id):
     del context.user_data['create_test']
 
 async def save_after_create(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сохранить тест после создания"""
     query = update.callback_query
     await query.answer()
     
@@ -1527,7 +1518,6 @@ async def save_after_create(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === ОСНОВНЫЕ ХЕНДЛЕРЫ МЕНЮ ===
 async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Раздел Мои тесты"""
     user_id = update.effective_user.id
     created = get_user_created_tests(user_id)
     saved = get_saved_tests(user_id)
@@ -1551,7 +1541,6 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                    reply_markup=get_my_tests_keyboard(bool(created), bool(saved)))
 
 async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать созданные тесты"""
     query = update.callback_query
     await query.answer()
     
@@ -1576,7 +1565,6 @@ async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE)
                                  reply_markup=get_paginated_tests_keyboard(tests, page, "created"))
 
 async def show_saved_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать сохранённые тесты"""
     query = update.callback_query
     await query.answer()
     
@@ -1601,7 +1589,6 @@ async def show_saved_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                  reply_markup=get_paginated_tests_keyboard(tests, page, "saved"))
 
 async def show_test_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать детали теста"""
     query = update.callback_query
     await query.answer()
     
@@ -1628,7 +1615,6 @@ async def show_test_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                  reply_markup=get_test_action_keyboard(test_id, is_owner, is_saved))
 
 async def view_full_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать полный тест с вопросами и ответами"""
     query = update.callback_query
     await query.answer()
     
@@ -1655,7 +1641,6 @@ async def view_full_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text += f"   ➖ {j}. {opt}\n"
         text += "\n"
     
-    # Если текст слишком длинный, обрезаем
     if len(text) > 4000:
         text = text[:3500] + "\n\n... и ещё вопросы (слишком длинный тест)"
     
@@ -1663,7 +1648,6 @@ async def view_full_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                  reply_markup=get_full_test_keyboard(test_id, is_owner))
 
 async def share_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Поделиться тестом"""
     query = update.callback_query
     await query.answer()
     
@@ -1699,7 +1683,6 @@ async def share_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         complete_daily_task(user_id, 'send_test')
 
 async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать ежедневные задания"""
     user_id = update.effective_user.id
     tasks = get_daily_tasks(user_id)
     
@@ -1724,7 +1707,6 @@ async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать достижения"""
     user_id = update.effective_user.id
     achievements = get_achievements(user_id)
     
@@ -1755,7 +1737,6 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать рейтинг"""
     user_id = update.effective_user.id
     top = get_top_users(20)
     user = get_user(user_id)
@@ -1793,7 +1774,6 @@ async def rating_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать статистику"""
     user_id = update.effective_user.id
     user = get_user(user_id)
     if not user:
@@ -1845,7 +1825,6 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def detailed_stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Детальная статистика для премиум"""
     query = update.callback_query
     await query.answer()
     
@@ -1890,13 +1869,12 @@ async def detailed_stats_handler(update: Update, context: ContextTypes.DEFAULT_T
             text += f" (@{row['friend_username']})"
         text += f"\n🎯 *Результат:* {row['score']:.0f}%\n\n"
         
-        # Показываем ответы на вопросы
         questions = json.loads(row['questions'])
         answers = json.loads(row['answers'])
         options = json.loads(row['options'])
         correct = json.loads(row['correct_answers'])
         
-        for i, q in enumerate(questions[:5]):  # Показываем максимум 5 вопросов
+        for i, q in enumerate(questions[:5]):
             if i < len(answers):
                 is_correct = answers[i] == correct[i]
                 mark = "✅" if is_correct else "❌"
@@ -1913,7 +1891,6 @@ async def detailed_stats_handler(update: Update, context: ContextTypes.DEFAULT_T
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Топ подруг"""
     query = update.callback_query
     await query.answer()
     
@@ -1962,7 +1939,6 @@ async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ежедневный бонус"""
     user_id = update.effective_user.id
     result = get_daily_bonus(user_id)
     
@@ -2006,7 +1982,6 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def invite_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Пригласить подругу"""
     user_id = update.effective_user.id
     user = get_user(user_id)
     if not user:
@@ -2029,22 +2004,19 @@ async def invite_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"3️⃣ Ты получаешь +1 тестик!\n\n"
             f"✨ *Чем больше подруг, тем веселее!* ✨")
     
-    # Добавляем кнопку для копирования ссылки
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📋 Скопировать ссылку", callback_data="copy_link"),
-         InlineKeyboardButton("👭 Поделиться", switch_inline_query=f="Привет! 👋\n\nДавай проверим, насколько хорошо мы знаем друг друга! 🎀\n\nПереходи по ссылке и начинай:\n{link}")]
+         InlineKeyboardButton("👭 Поделиться", switch_inline_query=f"Привет! 👋\n\nДавай проверим, насколько хорошо мы знаем друг друга! 🎀\n\nПереходи по ссылке и начинай:\n{link}")]
     ])
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
 
 async def copy_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик копирования ссылки"""
     query = update.callback_query
     await query.answer()
     await query.message.reply_text("📋 *Ссылка скопирована!* Отправь её подружке 💕", parse_mode=ParseMode.MARKDOWN)
 
 async def shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Магазин"""
     if update.callback_query:
         user_id = update.callback_query.from_user.id
         msg = update.callback_query.message
@@ -2086,7 +2058,6 @@ async def shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await msg.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_shop_keyboard())
 
 async def save_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сохранить тест"""
     query = update.callback_query
     await query.answer()
     
@@ -2119,7 +2090,6 @@ async def save_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("💔 *Этот тестик уже сохранён!* 💔", parse_mode=ParseMode.MARKDOWN)
 
 async def unsave_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Удалить сохранённый тест"""
     query = update.callback_query
     await query.answer()
     
@@ -2130,7 +2100,6 @@ async def unsave_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.message.reply_text("💔 *Ошибка при удалении* 💔", parse_mode=ParseMode.MARKDOWN)
 
 async def confirm_share_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Подтверждение отправки"""
     query = update.callback_query
     await query.answer()
     
@@ -2147,26 +2116,22 @@ async def confirm_share_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
 async def cancel_share_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отмена отправки"""
     query = update.callback_query
     await query.answer()
     await query.message.reply_text("❌ *Отменено* ❌", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def back_to_groups_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Назад к группам"""
     query = update.callback_query
     await query.answer()
     await query.message.reply_text("✨ *Выбери тему для вопросов:* ✨", parse_mode=ParseMode.MARKDOWN, 
                                   reply_markup=get_question_groups_keyboard(query.from_user.id))
 
 async def open_shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Открыть магазин"""
     query = update.callback_query
     await query.answer()
     await shop_handler(update, context)
 
 async def premium_shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Премиум-магазин"""
     query = update.callback_query
     await query.answer()
     
@@ -2190,7 +2155,6 @@ async def premium_shop_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_shop_keyboard())
 
 async def buy_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Покупка предмета"""
     query = update.callback_query
     await query.answer()
     
@@ -2210,7 +2174,6 @@ async def buy_item_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def promocode_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Активация промокода"""
     if not context.args:
         await update.message.reply_text(
             "🎁 *Активация промокода*\n\n"
@@ -2221,12 +2184,10 @@ async def promocode_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     code = context.args[0].upper()
-    # TODO: реализовать проверку в БД
     await update.message.reply_text(f"✅ *Промокод {code} активирован!* +5 тестов в подарок! 🎉", parse_mode=ParseMode.MARKDOWN)
     add_tests(update.effective_user.id, 5)
 
 async def start_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начать прохождение теста"""
     query = update.callback_query
     await query.answer()
     
@@ -2258,7 +2219,6 @@ async def start_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await send_question(query, context, test['questions'][0], test['options'][0], 1, len(test['questions']))
 
 async def send_question(query, context, question, options, current, total):
-    """Отправить вопрос"""
     text = (f"{WOW_EMOJIS['star']} *Вопрос {current}/{total}* {WOW_EMOJIS['star']}\n\n"
             f"{question}\n\n"
             f"👇 *Выбери ответ:* 👇")
@@ -2276,7 +2236,6 @@ async def send_question(query, context, question, options, current, total):
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def take_test_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка ответа на тест"""
     query = update.callback_query
     await query.answer()
     
@@ -2299,7 +2258,6 @@ async def take_test_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data['taking_test']
 
 async def finish_test(query, context, data):
-    """Завершить тест и показать диплом"""
     test = data['test']
     answers = data['answers']
     correct = data['correct']
@@ -2310,7 +2268,6 @@ async def finish_test(query, context, data):
         if i < len(correct) and ans == correct[i]:
             score += 100 / len(test['questions'])
     
-    # Сохраняем попытку и начисляем очки
     save_attempt(data['test_id'], user.id, user.first_name, user.username, answers, score, context.bot)
     
     diplom_key = get_selected_diplom(test['creator_id'])
@@ -2496,7 +2453,6 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === ОБРАБОТЧИКИ ===
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик текстовых кнопок"""
     text = update.message.text
     
     if text == "📝 Создать тест":
@@ -2529,7 +2485,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("🌸 *Используй кнопки меню!* 🌸", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик inline кнопок"""
     query = update.callback_query
     data = query.data
     
