@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 62.0 - С ГОЛОСОВЫМИ/ВИДЕО ПОЗДРАВЛЕНИЯМИ
+Версия: 63.0 - ИСПРАВЛЕНА ЛОГИКА ПРЕМИУМ/БЕСПЛАТНЫЕ
 """
 
 import logging
@@ -34,8 +34,6 @@ MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
-MAX_CREATED_FREE = 3
-MAX_CREATED_PREMIUM = 10
 MAX_SAVED_FREE = 3
 MAX_SAVED_PREMIUM = 10
 ADMIN_ID = 710623393
@@ -629,14 +627,6 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
                 greeting_type=None, greeting_file_id=None, greeting_duration=None):
     conn = get_db()
     try:
-        created_count = get_user_created_tests_count(creator_id)
-        has_premium = is_premium(creator_id)
-        max_created = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
-        
-        if created_count >= max_created:
-            logger.error(f"Лимит созданных тестов: {created_count}/{max_created}")
-            return None
-        
         c = conn.cursor()
         c.execute('''INSERT INTO tests 
             (creator_id, creator_name, creator_username, title, questions, options, correct_answers, greeting_type, greeting_file_id, greeting_duration)
@@ -657,21 +647,6 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         return None
     finally:
         conn.close()
-
-def get_user_created_tests_count(user_id):
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM tests WHERE creator_id = ?', (user_id,))
-        return c.fetchone()[0]
-    finally:
-        conn.close()
-
-def can_create_test(user_id):
-    created_count = get_user_created_tests_count(user_id)
-    has_premium = is_premium(user_id)
-    max_created = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
-    return created_count < max_created
 
 def can_save_test(user_id):
     saved_count = get_saved_tests_count(user_id)
@@ -1216,18 +1191,6 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     available = get_available_tests(user_id)
     
-    if not can_create_test(user_id):
-        has_premium = is_premium(user_id)
-        max_created = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
-        await update.message.reply_text(
-            f"💔 *Ты создала максимум тестов!* 💔\n\n"
-            f"📝 *Лимит:* {max_created} тестов\n"
-            f"💎 *Купи премиум для {MAX_CREATED_PREMIUM} тестов!*",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
-        )
-        return
-    
     if available == 0:
         await update.message.reply_text(
             f"💔 *Ой-ой! Тестики закончились!* 💔\n\n"
@@ -1310,7 +1273,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
         else:
             await update.message.reply_text(
-                f"✨ *Отлично! Теперь выбери группу вопросов:* ✨",
+                f"✨ *Отлично! Теперь выбери тему для вопросов:* ✨",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=get_question_groups_keyboard(user_id)
             )
@@ -1621,19 +1584,6 @@ async def show_next_question(query, context):
 async def finish_creation(query_or_update, context, user_id):
     data = context.user_data.get('create_test', {})
     if not data:
-        return
-    
-    if not can_create_test(user_id):
-        has_premium = is_premium(user_id)
-        max_created = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
-        msg = (f"💔 *Ты создала максимум тестов!* 💔\n\n"
-               f"📝 *Лимит:* {max_created} тестов\n"
-               f"💎 *Купи премиум для {MAX_CREATED_PREMIUM} тестов!*")
-        if hasattr(query_or_update, 'message'):
-            await query_or_update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
-        else:
-            await query_or_update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
-        del context.user_data['create_test']
         return
     
     if not use_attempt(user_id):
