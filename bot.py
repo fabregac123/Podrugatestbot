@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 65.0 - ИСПРАВЛЕННАЯ
+Версия: 67.0 - ОБНОВЛЕННОЕ МЕНЮ
 """
 
 import logging
@@ -297,11 +297,22 @@ def init_db():
             questions TEXT,
             options TEXT,
             correct_answers TEXT,
-            greeting_type TEXT,
-            greeting_file_id TEXT,
-            greeting_duration INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
+        
+        # Добавляем колонки для голосовых/видео, если их нет
+        try:
+            c.execute('ALTER TABLE tests ADD COLUMN greeting_type TEXT')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            c.execute('ALTER TABLE tests ADD COLUMN greeting_file_id TEXT')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            c.execute('ALTER TABLE tests ADD COLUMN greeting_duration INTEGER DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass
         
         c.execute('''CREATE TABLE IF NOT EXISTS attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -931,8 +942,7 @@ def get_selected_diplom(user_id):
 def get_main_keyboard():
     keyboard = [
         [KeyboardButton("📝 Создать тест"), KeyboardButton("👑 Мои тесты")],
-        [KeyboardButton("📊 Статистика"), KeyboardButton("🎁 Бонус")],
-        [KeyboardButton("📋 Задания"), KeyboardButton("🏆 Достижения")],
+        [KeyboardButton("📊 Статистика"), KeyboardButton("🎁 Задания и бонусы")],
         [KeyboardButton("👭 Пригласить"), KeyboardButton("🛍️ Магазин")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -2626,12 +2636,9 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await my_tests_handler(update, context)
     elif text == "📊 Статистика":
         await stats_handler(update, context)
-    elif text == "🎁 Бонус":
-        await daily_bonus_handler(update, context)
-    elif text == "📋 Задания":
+    elif text == "🎁 Задания и бонусы":
         await daily_tasks_handler(update, context)
-    elif text == "🏆 Достижения":
-        await achievements_handler(update, context)
+        await daily_bonus_handler(update, context)
     elif text == "👭 Пригласить":
         await invite_handler(update, context)
     elif text == "🛍️ Магазин":
@@ -2757,9 +2764,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^📝 Создать тест$"), create_test_start))
     app.add_handler(MessageHandler(filters.Regex("^👑 Мои тесты$"), my_tests_handler))
     app.add_handler(MessageHandler(filters.Regex("^📊 Статистика$"), stats_handler))
-    app.add_handler(MessageHandler(filters.Regex("^🎁 Бонус$"), daily_bonus_handler))
-    app.add_handler(MessageHandler(filters.Regex("^📋 Задания$"), daily_tasks_handler))
-    app.add_handler(MessageHandler(filters.Regex("^🏆 Достижения$"), achievements_handler))
+    app.add_handler(MessageHandler(filters.Regex("^🎁 Задания и бонусы$"), handle_buttons))
     app.add_handler(MessageHandler(filters.Regex("^👭 Пригласить$"), invite_handler))
     app.add_handler(MessageHandler(filters.Regex("^🛍️ Магазин$"), shop_handler))
     
