@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 72.0 - ИСПРАВЛЕНА ОШИБКА СОЗДАНИЯ ТЕСТА
+Версия: 73.0 - С ГОЛОСОВЫМИ/ВИДЕО ПОЗДРАВЛЕНИЯМИ
 """
 
 import logging
@@ -397,6 +397,9 @@ def init_db():
             questions TEXT,
             options TEXT,
             correct_answers TEXT,
+            greeting_type TEXT,
+            greeting_file_id TEXT,
+            greeting_duration INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
         
@@ -755,15 +758,16 @@ def get_daily_bonus(user_id):
     finally:
         conn.close()
 
-def create_test(creator_id, creator_name, creator_username, title, questions, options, correct_answers):
+def create_test(creator_id, creator_name, creator_username, title, questions, options, correct_answers, 
+                greeting_type=None, greeting_file_id=None, greeting_duration=None):
     conn = get_db()
     try:
         c = conn.cursor()
         c.execute('''INSERT INTO tests 
-            (creator_id, creator_name, creator_username, title, questions, options, correct_answers)
-            VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (creator_id, creator_name, creator_username, title, questions, options, correct_answers, greeting_type, greeting_file_id, greeting_duration)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (creator_id, creator_name, creator_username, title, json.dumps(questions), 
-             json.dumps(options), json.dumps(correct_answers)))
+             json.dumps(options), json.dumps(correct_answers), greeting_type, greeting_file_id, greeting_duration))
         test_id = c.lastrowid
         c.execute('UPDATE users SET tests_created = tests_created + 1 WHERE user_id = ?', (creator_id,))
         conn.commit()
@@ -851,6 +855,15 @@ async def save_attempt(test_id, friend_id, friend_name, friend_username, answers
             
             if bot:
                 await send_test_completed_notification(bot, test['creator_id'], friend_name, test['title'], score)
+            
+            if bot and test.get('greeting_file_id'):
+                try:
+                    if test.get('greeting_type') == 'voice':
+                        await bot.send_voice(chat_id=friend_id, voice=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
+                    elif test.get('greeting_type') == 'video':
+                        await bot.send_video(chat_id=friend_id, video=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
+                except Exception as e:
+                    logger.error(f"Ошибка отправки поздравления: {e}")
         
         add_points(friend_id, int(score))
         add_weekly_points(friend_id, int(score))
@@ -1435,9 +1448,29 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await update.message.reply_text("⚠️ *Название должно быть длиннее 3 символов!* Попробуй ещё раз ⚠️", parse_mode=ParseMode.MARKDOWN)
             return
         data['title'] = text.strip()
-        data['step'] = 'group'
+        data['step'] = 'greeting'
         user_id = update.effective_user.id
-        await update.message.reply_text("✨ *Отлично! Теперь выбери тему для вопросов:* ✨", parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_groups_keyboard(user_id))
+        
+        if is_premium(user_id):
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🎤 Голосовое", callback_data="greeting_voice"),
+                 InlineKeyboardButton("🎥 Видео", callback_data="greeting_video")],
+                [InlineKeyboardButton("⏭️ Пропустить", callback_data="greeting_skip")]
+            ])
+            await update.message.reply_text(
+                f"🎬✨ *ДОБАВЬ ПОЗДРАВЛЕНИЕ!* ✨🎬\n\n"
+                f"Твоя подружка получит это после прохождения теста!\n\n"
+                f"📝 *Твой тест:* {data['title']}\n\n"
+                f"👇 *Выбери тип поздравления:* 👇",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboard
+            )
+        else:
+            await update.message.reply_text(
+                f"✨ *Отлично! Теперь выбери тему для вопросов:* ✨",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_question_groups_keyboard(user_id)
+            )
     
     elif step == 'waiting_question_count':
         try:
@@ -1483,6 +1516,66 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=get_options_keyboard()
             )
+
+async def ask_for_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    data = context.user_data.get('create_test')
+    
+    if not data:
+        return
+    
+    greeting_type = query.data.split("_")[1]
+    
+    if greeting_type == "skip":
+        data['step'] = 'group'
+        await query.message.reply_text("✨ *Выбери тему для вопросов:* ✨", parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_groups_keyboard(user_id))
+        return
+    
+    data['waiting_greeting'] = greeting_type
+    
+    if greeting_type == "voice":
+        text = "🎤 *Отправь голосовое сообщение* (до 15 секунд)\n\n❌ *Отмена* - чтобы пропустить"
+    else:
+        text = "🎥 *Отправь видео* (до 15 секунд)\n\n❌ *Отмена* - чтобы пропустить"
+    
+    await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+
+async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = context.user_data.get('create_test')
+    if not data or not data.get('waiting_greeting'):
+        return
+    
+    greeting_type = data['waiting_greeting']
+    
+    if greeting_type == "voice":
+        if not update.message.voice:
+            await update.message.reply_text("❌ *Отправь голосовое сообщение!*", parse_mode=ParseMode.MARKDOWN)
+            return
+        file_id = update.message.voice.file_id
+        duration = update.message.voice.duration
+    else:
+        if not update.message.video:
+            await update.message.reply_text("❌ *Отправь видео!*", parse_mode=ParseMode.MARKDOWN)
+            return
+        file_id = update.message.video.file_id
+        duration = update.message.video.duration
+    
+    data['greeting_type'] = greeting_type
+    data['greeting_file_id'] = file_id
+    data['greeting_duration'] = duration
+    del data['waiting_greeting']
+    data['step'] = 'group'
+    
+    await update.message.reply_text(
+        f"✅ *Поздравление сохранено!* 🎉\n\n"
+        f"Теперь твоя подружка получит его после прохождения теста! 💕\n\n"
+        f"✨ *Выбери тему для вопросов:* ✨",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_question_groups_keyboard(update.effective_user.id)
+    )
 
 async def show_current_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('create_test')
@@ -1769,7 +1862,10 @@ async def finish_creation(query_or_update, context, user_id):
         data['title'],
         questions,
         options,
-        correct
+        correct,
+        data.get('greeting_type'),
+        data.get('greeting_file_id'),
+        data.get('greeting_duration')
     )
     
     if test_id:
@@ -2869,6 +2965,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await back_to_groups_handler(update, context)
     elif data.startswith("correct_"):
         await select_correct_answer(update, context)
+    elif data.startswith("greeting_"):
+        await ask_for_greeting(update, context)
     
     # Тесты
     elif data.startswith("confirm_share_"):
@@ -2948,6 +3046,8 @@ def main():
     # Общие обработчики
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
     app.add_handler(MessageHandler(filters.Regex("^❌ Отмена$"), cancel_creation))
+    app.add_handler(MessageHandler(filters.VOICE, save_greeting))
+    app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
     
     # Callback обработчик
     app.add_handler(CallbackQueryHandler(callback_handler))
