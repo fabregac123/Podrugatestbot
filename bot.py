@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 73.0 - С ГОЛОСОВЫМИ/ВИДЕО ПОЗДРАВЛЕНИЯМИ
+Версия: 74.0 - ИСПРАВЛЕННАЯ
 """
 
 import logging
@@ -43,6 +43,16 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# === ФУНКЦИЯ ДЛЯ СКЛОНЕНИЯ СЛОВ ===
+def decline_word(number, word1, word2, word3):
+    if 11 <= number % 100 <= 19:
+        return word3
+    if number % 10 == 1:
+        return word1
+    if 2 <= number % 10 <= 4:
+        return word2
+    return word3
 
 # === ГРУППЫ ВОПРОСОВ ===
 FREE_QUESTION_GROUPS = {
@@ -1189,11 +1199,10 @@ def get_shop_keyboard():
 
 def get_share_confirm_keyboard(test_id):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Отправить подруге", callback_data=f"confirm_share_{test_id}"),
-         InlineKeyboardButton("💾 Сохранить в мои тесты", callback_data=f"save_after_create_{test_id}"),
+        [InlineKeyboardButton("💾 Сохранить в мои тесты", callback_data=f"save_after_create_{test_id}"),
          InlineKeyboardButton("❌ Отмена", callback_data="cancel_share")],
         [InlineKeyboardButton("👭 Поделиться ссылкой", 
-            switch_inline_query=f"🌸✨ ПРИВЕТ, ПОДРУЖКА! ✨🌸\n\n💕 Твоя подруга приглашает тебя пройти тестик!\n\n📝 Узнай, насколько хорошо ты её знаешь!\n\n👉 Нажми и начни!\n\nhttps://t.me/{BOT_USERNAME}?start=test_{test_id}")]
+            switch_inline_query=f"💕 Привет! Подружка приглашает тебя пройти тест 💕\n\n🎀 Узнай, насколько хорошо ты её знаешь! 🎀\n\n👉 Переходи по ссылке и начинай! 👈\n\nhttps://t.me/{BOT_USERNAME}?start=test_{test_id}")]
     ])
 
 def get_start_test_keyboard(test_id):
@@ -1205,7 +1214,7 @@ def get_start_test_keyboard(test_id):
 def get_my_tests_keyboard(has_created, has_saved):
     keyboard = []
     if has_created:
-        keyboard.append([InlineKeyboardButton("📝 Мои создания", callback_data="show_created_tests")])
+        keyboard.append([InlineKeyboardButton("📝 Мои тесты", callback_data="show_created_tests")])
     if has_saved:
         keyboard.append([InlineKeyboardButton("⭐ Сохранённые тесты", callback_data="show_saved_tests")])
     keyboard.append([InlineKeyboardButton("🔙 В главное меню", callback_data="back_to_main")])
@@ -1310,11 +1319,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     premium = "💎 ПРЕМИУМ" if is_premium(user.id) else "🔓 БЕСПЛАТНЫЙ"
     
     tests_text = "♾️" if tests == -1 else f"{tests}"
+    test_word = decline_word(tests, "тест", "теста", "тестов") if tests != -1 else ""
+    tests_display = f"{tests_text} {test_word}" if tests != -1 else tests_text
+    
+    premium_text = ""
+    if is_premium(user.id):
+        expiry = get_premium_expiry(user.id)
+        if expiry:
+            premium_text = f"\n💎 Премиум действует до: {expiry.strftime('%d.%m.%Y')}"
     
     text = (f"{WOW_EMOJIS['start']}{WOW_EMOJIS['sparkle']} *ПРИВЕТ, {user.first_name or 'ПОДРУЖКА'}!* {WOW_EMOJIS['sparkle']}{WOW_EMOJIS['start']}\n\n"
             f"🌸 *Добро пожаловать в PodrugaTestBot* — место, где мы проверяем, насколько круто мы знаем друг друга! 🌸\n\n"
             f"🎀 *Твой статус:* {premium}\n"
-            f"🎁 *Доступно:* {tests_text}\n"
+            f"🎁 *Доступно:* {tests_display}{premium_text}\n"
             f"⭐ *Очков:* {points}\n"
             f"🏆 *Ранг:* {rank['name']}\n\n"
             f"💫 *Что тебя ждёт?*\n"
@@ -1403,10 +1420,18 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     
     tests_text = "♾️" if available == -1 else f"{available}"
+    test_word = decline_word(available, "тест", "теста", "тестов") if available != -1 else ""
+    tests_display = f"{tests_text} {test_word}" if available != -1 else tests_text
+    
+    premium_text = ""
+    if is_premium(user_id):
+        expiry = get_premium_expiry(user_id)
+        if expiry:
+            premium_text = f"\n💎 Премиум действует до: {expiry.strftime('%d.%m.%Y')}"
     
     await update.message.reply_text(
         f"{WOW_EMOJIS['sparkle']} *СОЗДАЁМ НОВЫЙ ТЕСТИК!* {WOW_EMOJIS['sparkle']}\n\n"
-        f"📦 *Осталось попыток:* {tests_text}\n\n"
+        f"📦 *Осталось попыток:* {tests_display}{premium_text}\n\n"
         f"🌸 *Придумай красивое название*\n"
         f"Например: «Насколько хорошо ты меня знаешь?» или «Твоя любимая подружка»\n\n"
         f"✏️ *Напиши название теста:*\n\n"
@@ -1869,7 +1894,7 @@ async def finish_creation(query_or_update, context, user_id):
     )
     
     if test_id:
-        text = (f"🎉✨ *УРА! ТЕСТИК ГОТОВ!* ✨🎉\n\n"
+        text = (f"🎉✨ *ТЕСТИК ГОТОВ!* ✨🎉\n\n"
                 f"📝 *Название:* {data['title']}\n"
                 f"🔢 *Вопросов:* {data['total_q']}\n\n"
                 f"💖 *Ты молодец! Теперь поделись им с подружкой!* 💖\n\n"
@@ -1910,11 +1935,13 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'current_list': None
     }
     
-    text = (f"👑✨ *МОИ ТЕСТИКИ* ✨👑\n\n")
+    text = (f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n")
     if created:
-        text += f"📝 *Создано мной:* {len(created)}\n"
+        test_word = decline_word(len(created), "тест", "теста", "тестов")
+        text += f"📝 *Создано мной:* {len(created)} {test_word}\n"
     if saved:
-        text += f"⭐ *Сохранено:* {len(saved)}\n"
+        test_word = decline_word(len(saved), "тест", "теста", "тестов")
+        text += f"⭐ *Сохранено:* {len(saved)} {test_word}\n"
     if not created and not saved:
         text += "🌸 *У тебя пока нет тестиков* 🌸\n\nСоздай свой первый тест или сохрани чужой!"
     
@@ -1935,11 +1962,12 @@ async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     context.user_data['my_tests']['current_list'] = 'created'
     
-    text = f"👑✨ *МОИ ТЕСТИКИ* ✨👑\n\n"
+    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
     start = page * 5
     for test in tests[start:start+5]:
+        passed_word = decline_word(test['attempts_count'], "подружка", "подружки", "подружек")
         text += f"📝 *{test['title'][:30]}*\n"
-        text += f"   👥 Прошло: {test['attempts_count']} подружек\n"
+        text += f"   👥 Прошло: {test['attempts_count']} {passed_word}\n"
         text += f"   📅 {test['created_at'][:10]}\n\n"
     
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN,
@@ -1959,7 +1987,7 @@ async def show_saved_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     context.user_data['my_tests']['current_list'] = 'saved'
     
-    text = f"⭐✨ *СОХРАНЁННЫЕ ТЕСТИКИ* ✨⭐\n\n"
+    text = f"⭐✨ *СОХРАНЁННЫЕ ТЕСТЫ* ✨⭐\n\n"
     start = page * 5
     for test in tests[start:start+5]:
         username = f"(@{test.get('creator_username', '')})" if test.get('creator_username') else ''
@@ -2083,7 +2111,8 @@ async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     if completed == len(tasks):
         text += f"\n\n🎉✨ *ТЫ СУПЕР-ПУПЕР ЗВЕЗДОЧКА!* ✨🎉\nВсе задания выполнены! Завтра будут новые! 🌸"
     else:
-        text += f"\n\n💪 *Осталось всего {len(tasks) - completed} заданий!* Ты справишься! 💪"
+        remaining_word = decline_word(len(tasks) - completed, "задание", "задания", "заданий")
+        text += f"\n\n💪 *Осталось всего {len(tasks) - completed} {remaining_word}!* Ты справишься! 💪"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
@@ -2192,12 +2221,19 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
     
     tests_text = "♾️" if tests_left == -1 else f"{tests_left}"
+    test_word = decline_word(tests_left, "тест", "теста", "тестов") if tests_left != -1 else ""
+    tests_display = f"{tests_text} {test_word}" if tests_left != -1 else tests_text
     
     premium_text = ""
     if has_premium:
         expiry = get_premium_expiry(user_id)
         if expiry:
             premium_text = f"\n💎 *Премиум до:* {expiry.strftime('%d.%m.%Y')}"
+    
+    created_word = decline_word(created, "тест", "теста", "тестов")
+    passed_word = decline_word(passed, "тест", "теста", "тестов")
+    referrals_word = decline_word(referrals, "подругу", "подруги", "подруг")
+    saved_word = decline_word(saved_count, "тест", "теста", "тестов")
     
     text = (f"📊✨ *ТВОЯ СТАТИСТИКА* ✨📊\n\n"
             f"👤 *Имя:* {user.get('first_name', 'Подружка')}\n"
@@ -2207,11 +2243,11 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 *Место:* {rating}\n"
             f"🔥 *Серия:* {streak} дней\n"
             f"🎯 *До след. ранга:* {get_next_level_points(points)} очков{premium_text}\n\n"
-            f"📝 *Создано тестов:* {created}\n"
-            f"🎯 *Пройдено тестов:* {passed}\n"
-            f"👭 *Приглашено подруг:* {referrals}\n"
-            f"📦 *Сохранено тестов:* {saved_count}\n"
-            f"🎁 *Доступно:* {tests_text}")
+            f"📝 *Создано тестов:* {created} {created_word}\n"
+            f"🎯 *Пройдено тестов:* {passed} {passed_word}\n"
+            f"👭 *Приглашено подруг:* {referrals} {referrals_word}\n"
+            f"📦 *Сохранено тестов:* {saved_count} {saved_word}\n"
+            f"🎁 *Доступно:* {tests_display}")
     
     keyboard = [
         [InlineKeyboardButton("🏆 За всё время", callback_data="rating_all"),
@@ -2245,16 +2281,23 @@ async def rating_all_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         name = u['first_name'] or f"ID {u['user_id']}"
         username = f"(@{u['username']})" if u['username'] else ''
+        created_word = decline_word(u['tests_created'], "тест", "теста", "тестов")
+        passed_word = decline_word(u['tests_passed'], "тест", "теста", "тестов")
+        invited_word = decline_word(u['referral_count'], "подругу", "подруги", "подруг")
         text += f"{medal} *{i}. {name}* {username}\n"
         text += f"   ⭐ Очки: *{u['total_points']}*\n"
-        text += f"   📝 Создала: {u['tests_created']} | 🎯 Прошла: {u['tests_passed']}\n"
-        text += f"   👭 Пригласила: {u['referral_count']}\n\n"
+        text += f"   📝 Создала: {u['tests_created']} {created_word} | 🎯 Прошла: {u['tests_passed']} {passed_word}\n"
+        text += f"   👭 Пригласила: {u['referral_count']} {invited_word}\n\n"
+    
+    created_word = decline_word(my_stats['created'], "тест", "теста", "тестов")
+    passed_word = decline_word(my_stats['passed'], "тест", "теста", "тестов")
+    invited_word = decline_word(my_stats['invited'], "подругу", "подруги", "подруг")
     
     text += f"📊 *Твоя статистика:*\n"
     text += f"   ⭐ Очки: {my_stats['points']}\n"
-    text += f"   📝 Создала: {my_stats['created']} тестов\n"
-    text += f"   🎯 Прошла: {my_stats['passed']} тестов\n"
-    text += f"   👭 Пригласила: {my_stats['invited']} подруг\n"
+    text += f"   📝 Создала: {my_stats['created']} {created_word}\n"
+    text += f"   🎯 Прошла: {my_stats['passed']} {passed_word}\n"
+    text += f"   👭 Пригласила: {my_stats['invited']} {invited_word}\n"
     
     conn = get_db()
     try:
@@ -2288,16 +2331,30 @@ async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         name = u['first_name'] or f"ID {u['user_id']}"
         username = f"(@{u['username']})" if u['username'] else ''
+        created_word = decline_word(u['tests_created'], "тест", "теста", "тестов")
+        passed_word = decline_word(u['tests_passed'], "тест", "теста", "тестов")
+        invited_word = decline_word(u['referral_count'], "подругу", "подруги", "подруг")
         text += f"{medal} *{i}. {name}* {username}\n"
         text += f"   ⭐ Очки за неделю: *{u['weekly_points']}*\n"
-        text += f"   📝 Создала: {u['tests_created']} | 🎯 Прошла: {u['tests_passed']}\n"
-        text += f"   👭 Пригласила: {u['referral_count']}\n\n"
+        text += f"   📝 Создала: {u['tests_created']} {created_word} | 🎯 Прошла: {u['tests_passed']} {passed_word}\n"
+        text += f"   👭 Пригласила: {u['referral_count']} {invited_word}\n\n"
+    
+    # Награда для первых трёх мест
+    if len(top_users) >= 3:
+        text += f"🎁✨ *ОСОБАЯ НАГРАДА* ✨🎁\n\n"
+        text += f"👑 *1 место* — 1 месяц премиума в подарок!\n"
+        text += f"🥈 *2 место* — 1 месяц премиума в подарок!\n"
+        text += f"🥉 *3 место* — 1 месяц премиума в подарок!\n\n"
+    
+    created_word = decline_word(my_stats['created'], "тест", "теста", "тестов")
+    passed_word = decline_word(my_stats['passed'], "тест", "теста", "тестов")
+    invited_word = decline_word(my_stats['invited'], "подругу", "подруги", "подруг")
     
     text += f"📊 *Твоя статистика за неделю:*\n"
     text += f"   ⭐ Очки: {my_stats['weekly_points']}\n"
-    text += f"   📝 Создала: {my_stats['created']} тестов\n"
-    text += f"   🎯 Прошла: {my_stats['passed']} тестов\n"
-    text += f"   👭 Пригласила: {my_stats['invited']} подруг\n"
+    text += f"   📝 Создала: {my_stats['created']} {created_word}\n"
+    text += f"   🎯 Прошла: {my_stats['passed']} {passed_word}\n"
+    text += f"   👭 Пригласила: {my_stats['invited']} {invited_word}\n"
     
     conn = get_db()
     try:
@@ -2357,9 +2414,10 @@ async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         name = friend['friend_name'] or 'Подружка'
         username = f"(@{friend['friend_username']})" if friend['friend_username'] else ''
+        test_word = decline_word(friend['tests_count'], "тест", "теста", "тестов")
         text += f"{medal} *{name}* {username}\n"
         text += f"   📊 Средний балл: {friend['avg_score']:.0f}%\n"
-        text += f"   📝 Прошла тестов: {friend['tests_count']}\n\n"
+        text += f"   📝 Прошла: {friend['tests_count']} {test_word}\n\n"
         
         if has_premium:
             keyboard.append([InlineKeyboardButton(
@@ -2459,31 +2517,10 @@ async def invite_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✨ *Чем больше подруг, тем веселее!* ✨")
     
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📋 Скопировать ссылку", callback_data="copy_link"),
-         InlineKeyboardButton("👭 Поделиться", switch_inline_query=f"Привет! 👋\n\nДавай проверим, насколько хорошо мы знаем друг друга! 🎀\n\nПереходи по ссылке и начинай:\n{link}")]
+        [InlineKeyboardButton("👭 Поделиться", switch_inline_query=f"💕 Привет! Подружка приглашает тебя пройти тест 💕\n\n🎀 Узнай, насколько хорошо ты её знаешь! 🎀\n\n👉 Переходи по ссылке и начинай! 👈\n\n{link}")]
     ])
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard, disable_web_page_preview=False)
-
-async def copy_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    user = get_user(user_id)
-    
-    if user:
-        code = user.get('referral_code')
-        link = f"https://t.me/{BOT_USERNAME}?start={code}"
-        await query.answer(text=f"🔗 Ссылка скопирована!", show_alert=True)
-        await query.message.reply_text(
-            f"📋 *Вот твоя пригласительная ссылка:*\n"
-            f"`{link}`\n\n"
-            f"Отправь её подружке 💕",
-            parse_mode=ParseMode.MARKDOWN
-        )
-    else:
-        await query.answer("❌ Ошибка! Попробуй позже", show_alert=True)
 
 async def shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
@@ -2682,6 +2719,8 @@ async def finish_test(query, context, data):
     diplom = DIPLOMS.get(diplom_key, DIPLOMS['free'])
     status = get_friendship_status(score)
     
+    points_word = decline_word(int(score), "очко", "очка", "очков")
+    
     text = (f"{diplom['border']}\n"
             f"{diplom['icon']} *{diplom['name']}* {diplom['icon']}\n"
             f"{diplom['border']}\n\n"
@@ -2689,7 +2728,7 @@ async def finish_test(query, context, data):
             f"📝 *Тест:* {test['title']}\n"
             f"🎯 *Результат:* {score:.0f}%\n"
             f"{status}\n\n"
-            f"💗 *+{int(score)} очков*\n"
+            f"💗 *+{int(score)} {points_word}*\n"
             f"{diplom['text']}\n\n"
             f"{diplom['border']}\n"
             f"✨ *СПАСИБО ЗА ПРОХОЖДЕНИЕ!* ✨\n"
@@ -3003,8 +3042,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("💎 *Для оплаты напишите @LavaTopBot* 💎", parse_mode=ParseMode.MARKDOWN)
     elif data == "shop":
         await shop_handler(update, context)
-    elif data == "copy_link":
-        await copy_link_handler(update, context)
     
     else:
         logger.warning(f"Неизвестный callback: {data}")
