@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 75.0 - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 76.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -511,18 +511,10 @@ def get_user_created_tests(user_id):
         for row in c.fetchall():
             test = dict(row)
             test['attempts_count'] = get_test_attempts_count(test['id'])
-            test['questions_count'] = len(json.loads(get_test_by_id(test['id'])['questions']))
+            test_data = get_test_by_id(test['id'])
+            test['questions_count'] = len(test_data['questions']) if test_data else 0
             tests.append(test)
         return tests
-    finally:
-        conn.close()
-
-def get_user_created_tests_count(user_id):
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM tests WHERE creator_id = ?', (user_id,))
-        return c.fetchone()[0]
     finally:
         conn.close()
 
@@ -856,7 +848,8 @@ def get_saved_tests(user_id):
         tests = []
         for row in c.fetchall():
             test = dict(row)
-            test['questions_count'] = len(json.loads(test['questions'] or '[]'))
+            test['questions'] = json.loads(test['questions'] or '[]')
+            test['questions_count'] = len(test['questions'])
             test['attempts_count'] = get_test_attempts_count(test['id'])
             tests.append(test)
         return tests
@@ -1121,6 +1114,15 @@ def get_random_questions(user_id, count):
     if len(all_questions) < count:
         return all_questions
     return random.sample(all_questions, count)
+
+def get_user_created_tests_count(user_id):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM tests WHERE creator_id = ?', (user_id,))
+        return c.fetchone()[0]
+    finally:
+        conn.close()
 
 # === КЛАВИАТУРЫ ===
 def get_main_keyboard():
@@ -2762,7 +2764,6 @@ async def finish_test(query, context, data):
             f"✨ *СПАСИБО ЗА ПРОХОЖДЕНИЕ!* ✨\n"
             f"{diplom['border']}")
     
-    # Если есть голосовое/видео поздравление, отправляем его отдельно красиво
     if test.get('greeting_file_id') and context.bot:
         try:
             if test.get('greeting_type') == 'voice':
