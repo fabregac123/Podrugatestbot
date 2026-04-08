@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 74.0 - ИСПРАВЛЕННАЯ
+Версия: 75.0 - ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -34,6 +34,8 @@ MAX_OPTIONS = 4
 MIN_OPTIONS = 2
 MAX_QUESTIONS_FREE = 5
 MAX_QUESTIONS_PREMIUM = 10
+MAX_CREATED_FREE = 3
+MAX_CREATED_PREMIUM = 10
 MAX_SAVED_FREE = 3
 MAX_SAVED_PREMIUM = 10
 ADMIN_ID = 710623393
@@ -502,13 +504,25 @@ def get_user_created_tests(user_id):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute('SELECT id, title, created_at FROM tests WHERE creator_id = ? ORDER BY created_at DESC LIMIT 10', (user_id,))
+        has_premium = is_premium(user_id)
+        limit = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
+        c.execute('SELECT id, title, created_at FROM tests WHERE creator_id = ? ORDER BY created_at DESC LIMIT ?', (user_id, limit))
         tests = []
         for row in c.fetchall():
             test = dict(row)
             test['attempts_count'] = get_test_attempts_count(test['id'])
+            test['questions_count'] = len(json.loads(get_test_by_id(test['id'])['questions']))
             tests.append(test)
         return tests
+    finally:
+        conn.close()
+
+def get_user_created_tests_count(user_id):
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT COUNT(*) FROM tests WHERE creator_id = ?', (user_id,))
+        return c.fetchone()[0]
     finally:
         conn.close()
 
@@ -783,6 +797,7 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         conn.commit()
         
         add_points(creator_id, 20)
+        add_weekly_points(creator_id, 20)
         complete_daily_task(creator_id, 'create_test')
         add_achievement(creator_id, 'first_test')
         
@@ -830,12 +845,21 @@ def get_saved_tests(user_id):
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute('''SELECT t.id, t.title, t.creator_name, t.creator_id, t.creator_username
+        has_premium = is_premium(user_id)
+        limit = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
+        c.execute('''SELECT t.id, t.title, t.creator_name, t.creator_id, t.creator_username, t.questions
                      FROM saved_tests s 
                      JOIN tests t ON s.test_id = t.id 
                      WHERE s.user_id = ? AND t.creator_id != ?
-                     ORDER BY s.created_at DESC''', (user_id, user_id))
-        return [dict(row) for row in c.fetchall()]
+                     ORDER BY s.created_at DESC
+                     LIMIT ?''', (user_id, user_id, limit))
+        tests = []
+        for row in c.fetchall():
+            test = dict(row)
+            test['questions_count'] = len(json.loads(test['questions'] or '[]'))
+            test['attempts_count'] = get_test_attempts_count(test['id'])
+            tests.append(test)
+        return tests
     finally:
         conn.close()
 
@@ -865,15 +889,6 @@ async def save_attempt(test_id, friend_id, friend_name, friend_username, answers
             
             if bot:
                 await send_test_completed_notification(bot, test['creator_id'], friend_name, test['title'], score)
-            
-            if bot and test.get('greeting_file_id'):
-                try:
-                    if test.get('greeting_type') == 'voice':
-                        await bot.send_voice(chat_id=friend_id, voice=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
-                    elif test.get('greeting_type') == 'video':
-                        await bot.send_video(chat_id=friend_id, video=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
-                except Exception as e:
-                    logger.error(f"Ошибка отправки поздравления: {e}")
         
         add_points(friend_id, int(score))
         add_weekly_points(friend_id, int(score))
@@ -1107,15 +1122,6 @@ def get_random_questions(user_id, count):
         return all_questions
     return random.sample(all_questions, count)
 
-def get_user_created_tests_count(user_id):
-    conn = get_db()
-    try:
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM tests WHERE creator_id = ?', (user_id,))
-        return c.fetchone()[0]
-    finally:
-        conn.close()
-
 # === КЛАВИАТУРЫ ===
 def get_main_keyboard():
     keyboard = [
@@ -1211,12 +1217,16 @@ def get_start_test_keyboard(test_id):
         InlineKeyboardButton("⭐ Сохранить", callback_data=f"save_test_{test_id}")
     ]])
 
-def get_my_tests_keyboard(has_created, has_saved):
+def get_my_tests_keyboard(has_created, has_saved, created_count, created_max, saved_count, saved_max, is_premium_user):
     keyboard = []
     if has_created:
         keyboard.append([InlineKeyboardButton("📝 Мои тесты", callback_data="show_created_tests")])
     if has_saved:
         keyboard.append([InlineKeyboardButton("⭐ Сохранённые тесты", callback_data="show_saved_tests")])
+    
+    if not is_premium_user:
+        keyboard.append([InlineKeyboardButton("💎 Купить премиум", callback_data="shop")])
+    
     keyboard.append([InlineKeyboardButton("🔙 В главное меню", callback_data="back_to_main")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -1826,10 +1836,13 @@ async def select_correct_answer(update: Update, context: ContextTypes.DEFAULT_TY
     if data['current_q'] < data['total_q']:
         data['step'] = 'selecting_question'
         data['current_question_index'] = (data.get('current_question_index', 0) + 1) % len(data.get('group_questions', [1]))
-        await query.message.reply_text(f"✅ *Вопрос {data['current_q']}/{data['total_q']} сохранён!* ✅\n\nПереходим к следующему вопросу...", parse_mode=ParseMode.MARKDOWN)
+        
+        question_word = decline_word(data['current_q'], "вопрос", "вопроса", "вопросов")
+        await query.message.reply_text(f"✅ *Вопрос {data['current_q']} {question_word} сохранён!* ✅\n\nПереходим к следующему вопросу...", parse_mode=ParseMode.MARKDOWN)
         await show_next_question(query, context)
     else:
-        await query.message.reply_text(f"✅ *Все {data['total_q']} вопросов сохранены!* ✅\n\n🎉 Создаём тест...", parse_mode=ParseMode.MARKDOWN)
+        question_word = decline_word(data['total_q'], "вопрос", "вопроса", "вопросов")
+        await query.message.reply_text(f"✅ *Все {data['total_q']} {question_word} сохранены!* ✅\n\n🎉 Создаём тест...", parse_mode=ParseMode.MARKDOWN)
         await finish_creation(query, context, query.from_user.id)
 
 async def show_next_question(query, context):
@@ -1925,28 +1938,36 @@ async def save_after_create(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # === ОСНОВНЫЕ ХЕНДЛЕРЫ МЕНЮ ===
 async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    created = get_user_created_tests(user_id)
-    saved = get_saved_tests(user_id)
+    has_premium = is_premium(user_id)
+    
+    created_tests = get_user_created_tests(user_id)
+    saved_tests = get_saved_tests(user_id)
+    
+    created_count = len(created_tests)
+    saved_count = len(saved_tests)
+    
+    created_max = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
+    saved_max = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
     
     context.user_data['my_tests'] = {
-        'created': created, 
-        'saved': saved, 
+        'created': created_tests, 
+        'saved': saved_tests, 
         'page': 0,
         'current_list': None
     }
     
     text = (f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n")
-    if created:
-        test_word = decline_word(len(created), "тест", "теста", "тестов")
-        text += f"📝 *Создано мной:* {len(created)} {test_word}\n"
-    if saved:
-        test_word = decline_word(len(saved), "тест", "теста", "тестов")
-        text += f"⭐ *Сохранено:* {len(saved)} {test_word}\n"
-    if not created and not saved:
+    if created_tests:
+        created_word = decline_word(created_count, "тест", "теста", "тестов")
+        text += f"📝 *Создано мной:* {created_count}/{created_max} {created_word}\n"
+    if saved_tests:
+        saved_word = decline_word(saved_count, "тест", "теста", "тестов")
+        text += f"⭐ *Сохранено:* {saved_count}/{saved_max} {saved_word}\n"
+    if not created_tests and not saved_tests:
         text += "🌸 *У тебя пока нет тестиков* 🌸\n\nСоздай свой первый тест или сохрани чужой!"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
-                                   reply_markup=get_my_tests_keyboard(bool(created), bool(saved)))
+                                   reply_markup=get_my_tests_keyboard(bool(created_tests), bool(saved_tests), created_count, created_max, saved_count, saved_max, has_premium))
 
 async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1965,8 +1986,10 @@ async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
     start = page * 5
     for test in tests[start:start+5]:
-        passed_word = decline_word(test['attempts_count'], "подружка", "подружки", "подружек")
+        question_word = decline_word(test['questions_count'], "вопрос", "вопроса", "вопросов")
+        passed_word = decline_word(test['attempts_count'], "девушка", "девушки", "девушек")
         text += f"📝 *{test['title'][:30]}*\n"
+        text += f"   ❓ {test['questions_count']} {question_word}\n"
         text += f"   👥 Прошло: {test['attempts_count']} {passed_word}\n"
         text += f"   📅 {test['created_at'][:10]}\n\n"
     
@@ -1991,8 +2014,11 @@ async def show_saved_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     start = page * 5
     for test in tests[start:start+5]:
         username = f"(@{test.get('creator_username', '')})" if test.get('creator_username') else ''
+        question_word = decline_word(test['questions_count'], "вопрос", "вопроса", "вопросов")
         text += f"📝 *{test['title'][:30]}*\n"
-        text += f"   👤 Автор: {test['creator_name']} {username}\n\n"
+        text += f"   👤 Автор: {test['creator_name']} {username}\n"
+        text += f"   ❓ {test['questions_count']} {question_word}\n"
+        text += f"   👥 Прошло: {test['attempts_count']} девушек\n\n"
     
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN,
                                  reply_markup=get_paginated_tests_keyboard(tests, page, "saved"))
@@ -2017,7 +2043,7 @@ async def show_test_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (f"📝✨ *{test['title']}* ✨📝\n\n"
             f"👤 *Автор:* {test['creator_name']}\n"
             f"📅 *Создан:* {test['created_at'][:10]}\n"
-            f"👥 *Прошло:* {test['attempts_count']} подружек\n\n"
+            f"👥 *Прошло:* {test['attempts_count']} девушек\n\n"
             f"👇 *Что хочешь сделать?* 👇")
     
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN,
@@ -2220,6 +2246,9 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         conn.close()
     
+    created_max = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
+    saved_max = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
+    
     tests_text = "♾️" if tests_left == -1 else f"{tests_left}"
     test_word = decline_word(tests_left, "тест", "теста", "тестов") if tests_left != -1 else ""
     tests_display = f"{tests_text} {test_word}" if tests_left != -1 else tests_text
@@ -2243,10 +2272,10 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 *Место:* {rating}\n"
             f"🔥 *Серия:* {streak} дней\n"
             f"🎯 *До след. ранга:* {get_next_level_points(points)} очков{premium_text}\n\n"
-            f"📝 *Создано тестов:* {created} {created_word}\n"
+            f"📝 *Создано тестов:* {created}/{created_max} {created_word}\n"
             f"🎯 *Пройдено тестов:* {passed} {passed_word}\n"
             f"👭 *Приглашено подруг:* {referrals} {referrals_word}\n"
-            f"📦 *Сохранено тестов:* {saved_count} {saved_word}\n"
+            f"📦 *Сохранено тестов:* {saved_count}/{saved_max} {saved_word}\n"
             f"🎁 *Доступно:* {tests_display}")
     
     keyboard = [
@@ -2339,7 +2368,6 @@ async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         text += f"   📝 Создала: {u['tests_created']} {created_word} | 🎯 Прошла: {u['tests_passed']} {passed_word}\n"
         text += f"   👭 Пригласила: {u['referral_count']} {invited_word}\n\n"
     
-    # Награда для первых трёх мест
     if len(top_users) >= 3:
         text += f"🎁✨ *ОСОБАЯ НАГРАДА* ✨🎁\n\n"
         text += f"👑 *1 место* — 1 месяц премиума в подарок!\n"
@@ -2733,6 +2761,16 @@ async def finish_test(query, context, data):
             f"{diplom['border']}\n"
             f"✨ *СПАСИБО ЗА ПРОХОЖДЕНИЕ!* ✨\n"
             f"{diplom['border']}")
+    
+    # Если есть голосовое/видео поздравление, отправляем его отдельно красиво
+    if test.get('greeting_file_id') and context.bot:
+        try:
+            if test.get('greeting_type') == 'voice':
+                await context.bot.send_voice(chat_id=user.id, voice=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
+            elif test.get('greeting_type') == 'video':
+                await context.bot.send_video(chat_id=user.id, video=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
+        except Exception as e:
+            logger.error(f"Ошибка отправки поздравления: {e}")
     
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
 
