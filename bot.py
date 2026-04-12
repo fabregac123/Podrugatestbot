@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 76.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 78.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -1125,17 +1125,28 @@ def get_user_created_tests_count(user_id):
         conn.close()
 
 # === КЛАВИАТУРЫ ===
-def get_main_keyboard():
+def get_main_keyboard(user_id=None):
     keyboard = [
         [KeyboardButton("🌸 Создать тест"), KeyboardButton("👑 Мои тесты")],
         [KeyboardButton("📊 Статистика"), KeyboardButton("🎀 Бонус и задания")],
         [KeyboardButton("👭 Пригласить"), KeyboardButton("🛍️ Магазин")]
     ]
+    if user_id and user_id == ADMIN_ID:
+        keyboard.append([KeyboardButton("🔧 Админ-панель")])
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def get_bonus_tasks_keyboard():
     keyboard = [
         [KeyboardButton("🎁 Бонус"), KeyboardButton("📋 Задания")],
+        [KeyboardButton("🔙 Назад")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_admin_keyboard():
+    keyboard = [
+        [KeyboardButton("👑 Выдать премиум"), KeyboardButton("🔻 Снять премиум")],
+        [KeyboardButton("➕ Добавить тесты"), KeyboardButton("⭐ Добавить очки")],
+        [KeyboardButton("📋 Список пользователей"), KeyboardButton("🔄 Сброс недельного рейтинга")],
         [KeyboardButton("🔙 Назад")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -1200,9 +1211,9 @@ def get_question_groups_keyboard(user_id):
 
 def get_shop_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("💎 Премиум 30 дней — 299 ₽", callback_data="buy_premium_month")],
-        [InlineKeyboardButton("💎 Премиум 3 месяца — 699 ₽", callback_data="buy_premium_3months")],
-        [InlineKeyboardButton("💎 Премиум ГОД — 1999 ₽", callback_data="buy_premium_year")]
+        [InlineKeyboardButton("💎 Премиум 30 дней — 199 ₽", callback_data="buy_premium_month")],
+        [InlineKeyboardButton("💎 Премиум 3 месяца — 459 ₽", callback_data="buy_premium_3months")],
+        [InlineKeyboardButton("💎 Премиум ГОД — 1299 ₽", callback_data="buy_premium_year")]
     ])
 
 def get_share_confirm_keyboard(test_id):
@@ -1219,7 +1230,7 @@ def get_start_test_keyboard(test_id):
         InlineKeyboardButton("⭐ Сохранить", callback_data=f"save_test_{test_id}")
     ]])
 
-def get_my_tests_keyboard(has_created, has_saved, created_count, created_max, saved_count, saved_max, is_premium_user):
+def get_my_tests_keyboard(has_created, has_saved, is_premium_user):
     keyboard = []
     if has_created:
         keyboard.append([InlineKeyboardButton("📝 Мои тесты", callback_data="show_created_tests")])
@@ -1279,8 +1290,17 @@ def get_rating_keyboard():
 
 # === ОСНОВНЫЕ ХЕНДЛЕРЫ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    bot = context.bot
+    # Определяем откуда пришёл вызов
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        message = query.message
+        user = query.from_user
+        bot = context.bot
+    else:
+        message = update.message
+        user = update.effective_user
+        bot = context.bot
     
     referred_by = None
     test_id = None
@@ -1321,7 +1341,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"📝 *{test['title']}*\n\n"
                     f"✨ Узнай, насколько хорошо ты знаешь свою подружку! ✨\n\n"
                     f"👇 Нажми на кнопку и вперёд! 👇")
-            await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_start_test_keyboard(test_id))
+            await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_start_test_keyboard(test_id))
             return
     
     user_data = get_user(user.id)
@@ -1355,7 +1375,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"• 🏆 Соревнуйся в рейтинге\n\n"
             f"💖 *Поехали! Нажимай на кнопки ниже* 💖")
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
 
 async def send_referral_notification(bot, referrer_id, new_user_name, is_new_user=True):
     try:
@@ -1368,7 +1388,7 @@ async def send_referral_notification(bot, referrer_id, new_user_name, is_new_use
         if is_new_user:
             text = (f"🌸✨ *НОВЕНЬКАЯ ПОДРУЖКА* ✨🌸\n\n"
                     f"💕 *{new_user_name}* перешла по твоей ссылочке!\n\n"
-                    f"🎁 Ты получила *+1 тестик* в подарок!\n"
+                    f"🎁 Ты получила *+1 тестик* и *+200 очков* в подарок!\n"
                     f"👭 Всего подружек: {stats['total']}\n"
                     f"⭐ Активных: {stats['active']}\n\n"
                     f"✨ *Продолжай приглашать девчонок!* ✨")
@@ -1401,6 +1421,8 @@ async def apply_referral_bonus(referrer_id: int, new_user_id: int):
         c.execute('INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)', (referrer_id, new_user_id))
         c.execute('UPDATE users SET referred_by = ? WHERE user_id = ?', (referrer_id, new_user_id))
         conn.commit()
+        add_points(referrer_id, 200)
+        add_weekly_points(referrer_id, 200)
         add_achievement(referrer_id, 'first_invite')
         complete_daily_task(referrer_id, 'invite_friend')
         return True
@@ -1422,7 +1444,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💎 Или купи *премиум* в магазине\n\n"
             f"✨ Не сдавайся, у тебя всё получится! ✨",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
         return
     
@@ -1455,7 +1477,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_creation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if 'create_test' in context.user_data:
         del context.user_data['create_test']
-    await update.message.reply_text("❌ *Создание теста отменено* ❌", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await update.message.reply_text("❌ *Создание теста отменено* ❌", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(update.effective_user.id))
 
 async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('create_test')
@@ -1883,9 +1905,9 @@ async def finish_creation(query_or_update, context, user_id):
                "👭 *Пригласи подружку*\n\n"
                "✨ Не сдавайся! ✨")
         if hasattr(query_or_update, 'message'):
-            await query_or_update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+            await query_or_update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
         else:
-            await query_or_update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+            await query_or_update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
         del context.user_data['create_test']
         return
     
@@ -1921,7 +1943,7 @@ async def finish_creation(query_or_update, context, user_id):
             await query_or_update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_confirm_keyboard(test_id))
     else:
         add_tests(user_id, 1)
-        await query_or_update.message.reply_text("💔 *Ошибка при создании теста!* Попробуй ещё раз 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query_or_update.message.reply_text("💔 *Ошибка при создании теста!* Попробуй ещё раз 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
     
     del context.user_data['create_test']
 
@@ -1933,9 +1955,9 @@ async def save_after_create(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if save_test(user_id, test_id):
-        await query.message.reply_text("⭐ *Тест сохранён в «Мои тесты»!* ⭐", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("⭐ *Тест сохранён в «Мои тесты»!* ⭐", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
     else:
-        await query.message.reply_text("💔 *Тест уже сохранён!* 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("💔 *Тест уже сохранён!* 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
 
 # === ОСНОВНЫЕ ХЕНДЛЕРЫ МЕНЮ ===
 async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1945,11 +1967,8 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     created_tests = get_user_created_tests(user_id)
     saved_tests = get_saved_tests(user_id)
     
-    created_count = len(created_tests)
+    created_count = get_user_created_tests_count(user_id)
     saved_count = len(saved_tests)
-    
-    created_max = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
-    saved_max = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
     
     context.user_data['my_tests'] = {
         'created': created_tests, 
@@ -1958,10 +1977,14 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'current_list': None
     }
     
+    created_max = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
+    saved_max = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
+    
     text = (f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n")
     if created_tests:
         created_word = decline_word(created_count, "тест", "теста", "тестов")
-        text += f"📝 *Создано мной:* {created_count}/{created_max} {created_word}\n"
+        text += f"📝 *Создано мной:* {created_count} {created_word}\n"
+        text += f"   *(Показываются последние {created_max} тестов)*\n"
     if saved_tests:
         saved_word = decline_word(saved_count, "тест", "теста", "тестов")
         text += f"⭐ *Сохранено:* {saved_count}/{saved_max} {saved_word}\n"
@@ -1969,7 +1992,7 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += "🌸 *У тебя пока нет тестиков* 🌸\n\nСоздай свой первый тест или сохрани чужой!"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
-                                   reply_markup=get_my_tests_keyboard(bool(created_tests), bool(saved_tests), created_count, created_max, saved_count, saved_max, has_premium))
+                                   reply_markup=get_my_tests_keyboard(bool(created_tests), bool(saved_tests), has_premium))
 
 async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2105,7 +2128,7 @@ async def share_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "👭 *Пригласи подружку*\n\n"
             "✨ Не сдавайся! ✨",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
         return
     
@@ -2142,7 +2165,7 @@ async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         remaining_word = decline_word(len(tasks) - completed, "задание", "задания", "заданий")
         text += f"\n\n💪 *Осталось всего {len(tasks) - completed} {remaining_word}!* Ты справишься! 💪"
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
 
 async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2162,7 +2185,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"🔥 *Серия:* {streak} дней{next_reward}\n\n"
             f"⏰ *Возвращайся завтра за новой порцией!* 💕",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
         return
     
@@ -2178,7 +2201,7 @@ async def daily_bonus_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     text += f"💫 *Завтра будет новая награда! Приходи снова!* 💫"
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
 
 async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2211,7 +2234,7 @@ async def achievements_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         if len(achievements) > 5:
             text += f"\n✨ *И ещё {len(achievements) - 5} достижений!* ✨"
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
 
 async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.callback_query:
@@ -2225,7 +2248,7 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     user = get_user(user_id)
     if not user:
-        await message.reply_text("❌ Ошибка", reply_markup=get_main_keyboard())
+        await message.reply_text("❌ Ошибка", reply_markup=get_main_keyboard(user_id))
         return
     
     points = user.get('total_points', 0)
@@ -2247,9 +2270,6 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rating = c.fetchone()[0]
     finally:
         conn.close()
-    
-    created_max = MAX_CREATED_PREMIUM if has_premium else MAX_CREATED_FREE
-    saved_max = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
     
     tests_text = "♾️" if tests_left == -1 else f"{tests_left}"
     test_word = decline_word(tests_left, "тест", "теста", "тестов") if tests_left != -1 else ""
@@ -2274,10 +2294,10 @@ async def stats_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📊 *Место:* {rating}\n"
             f"🔥 *Серия:* {streak} дней\n"
             f"🎯 *До след. ранга:* {get_next_level_points(points)} очков{premium_text}\n\n"
-            f"📝 *Создано тестов:* {created}/{created_max} {created_word}\n"
+            f"📝 *Создано тестов:* {created} {created_word}\n"
             f"🎯 *Пройдено тестов:* {passed} {passed_word}\n"
             f"👭 *Приглашено подруг:* {referrals} {referrals_word}\n"
-            f"📦 *Сохранено тестов:* {saved_count}/{saved_max} {saved_word}\n"
+            f"📦 *Сохранено тестов:* {saved_count} {saved_word}\n"
             f"🎁 *Доступно:* {tests_display}")
     
     keyboard = [
@@ -2372,9 +2392,9 @@ async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     if len(top_users) >= 3:
         text += f"🎁✨ *ОСОБАЯ НАГРАДА* ✨🎁\n\n"
-        text += f"👑 *1 место* — 1 месяц премиума в подарок!\n"
-        text += f"🥈 *2 место* — 1 месяц премиума в подарок!\n"
-        text += f"🥉 *3 место* — 1 месяц премиума в подарок!\n\n"
+        text += f"👑 *1 место* — 1000 рублей!\n"
+        text += f"🥈 *2 место* — 500 рублей!\n"
+        text += f"🥉 *3 место* — 300 рублей!\n\n"
     
     created_word = decline_word(my_stats['created'], "тест", "теста", "тестов")
     passed_word = decline_word(my_stats['passed'], "тест", "теста", "тестов")
@@ -2534,7 +2554,7 @@ async def invite_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats = get_referral_stats(user_id)
     
     text = (f"👭✨ *ПРИГЛАСИ ПОДРУЖКУ* ✨👭\n\n"
-            f"🌸 *Отправь ссылку и получи +1 тестик!* 🌸\n\n"
+            f"🌸 *Отправь ссылку и получи +1 тестик и +200 очков!* 🌸\n\n"
             f"🔗 *Твоя пригласительная ссылка:*\n"
             f"[👉 НАЖМИ, ЧТОБЫ СКОПИРОВАТЬ 👈](https://t.me/share/url?url=https://t.me/{BOT_USERNAME}?start={code})\n\n"
             f"📊 *Твоя статистика:*\n"
@@ -2543,7 +2563,7 @@ async def invite_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💡 *Как это работает:*\n"
             f"1️⃣ Отправь ссылку подружке\n"
             f"2️⃣ Она начинает играть\n"
-            f"3️⃣ Ты получаешь +1 тестик!\n\n"
+            f"3️⃣ Ты получаешь +1 тестик и +200 очков!\n\n"
             f"✨ *Чем больше подруг, тем веселее!* ✨")
     
     keyboard = InlineKeyboardMarkup([
@@ -2582,9 +2602,9 @@ async def shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ *Эксклюзивные рамки* и значки\n"
             f"✅ *Бесконечные тесты* — твори сколько хочешь!\n\n"
             f"🎁 *СТОИМОСТЬ ПРЕМИУМ:*\n\n"
-            f"• 💎 30 дней — *299 ₽*\n"
-            f"• 💎 3 месяца — *699 ₽*\n"
-            f"• 💎 ГОД — *1999 ₽*\n\n"
+            f"• 💎 30 дней — *199 ₽*\n"
+            f"• 💎 3 месяца — *459 ₽*\n"
+            f"• 💎 ГОД — *1299 ₽*\n\n"
             f"💡 *Совет:* Если ты создаёшь больше 10 тестов в месяц — премиум для тебя! 💡")
     
     await msg.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_shop_keyboard())
@@ -2601,7 +2621,7 @@ async def save_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if test['creator_id'] == user_id:
-        await query.message.reply_text("💔 *Нельзя сохранить свой собственный тестик!* 💔\nОн уже есть в разделе «Мои тесты»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("💔 *Нельзя сохранить свой собственный тестик!* 💔\nОн уже есть в разделе «Мои тесты»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
         return
     
     if not can_save_test(user_id):
@@ -2611,14 +2631,14 @@ async def save_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💔 *Лимит сохранённых тестов: {max_saved}!* 💔\n\n"
             f"💎 *Купи премиум для {MAX_SAVED_PREMIUM} сохранённых тестов!*",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
         return
     
     if save_test(user_id, test_id):
-        await query.message.reply_text("⭐✨ *Тестик сохранён в «Мои тесты»!* ✨⭐", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("⭐✨ *Тестик сохранён в «Мои тесты»!* ✨⭐", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
     else:
-        await query.message.reply_text("💔 *Этот тестик уже сохранён!* 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("💔 *Этот тестик уже сохранён!* 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
 
 async def unsave_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2626,9 +2646,9 @@ async def unsave_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     test_id = int(query.data.split("_")[2])
     if unsave_test(query.from_user.id, test_id):
-        await query.message.reply_text("🗑️ *Тестик удалён из сохранённых* 🗑️", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("🗑️ *Тестик удалён из сохранённых* 🗑️", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(query.from_user.id))
     else:
-        await query.message.reply_text("💔 *Ошибка при удалении* 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+        await query.message.reply_text("💔 *Ошибка при удалении* 💔", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(query.from_user.id))
 
 async def confirm_share_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2649,7 +2669,7 @@ async def confirm_share_handler(update: Update, context: ContextTypes.DEFAULT_TY
 async def cancel_share_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text("❌ *Отменено* ❌", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await query.message.reply_text("❌ *Отменено* ❌", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(query.from_user.id))
 
 async def back_to_groups_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2751,6 +2771,19 @@ async def finish_test(query, context, data):
     
     points_word = decline_word(int(score), "очко", "очка", "очков")
     
+    # Отправляем голосовое/видео с красивой подписью (если есть)
+    if test.get('greeting_file_id') and context.bot:
+        try:
+            caption = (f"🎬✨ *ПОЗДРАВЛЕНИЕ ОТ ПОДРУЖКИ* ✨🎬\n\n"
+                       f"💕 *Автор теста приготовила для тебя сюрприз!* 💕\n\n"
+                       f"👇 *Наслаждайся* 👇")
+            if test.get('greeting_type') == 'voice':
+                await context.bot.send_voice(chat_id=user.id, voice=test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
+            elif test.get('greeting_type') == 'video':
+                await context.bot.send_video(chat_id=user.id, video=test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
+        except Exception as e:
+            logger.error(f"Ошибка отправки поздравления: {e}")
+    
     text = (f"{diplom['border']}\n"
             f"{diplom['icon']} *{diplom['name']}* {diplom['icon']}\n"
             f"{diplom['border']}\n\n"
@@ -2764,26 +2797,230 @@ async def finish_test(query, context, data):
             f"✨ *СПАСИБО ЗА ПРОХОЖДЕНИЕ!* ✨\n"
             f"{diplom['border']}")
     
-    if test.get('greeting_file_id') and context.bot:
-        try:
-            if test.get('greeting_type') == 'voice':
-                await context.bot.send_voice(chat_id=user.id, voice=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
-            elif test.get('greeting_type') == 'video':
-                await context.bot.send_video(chat_id=user.id, video=test['greeting_file_id'], duration=test.get('greeting_duration', 0))
-        except Exception as e:
-            logger.error(f"Ошибка отправки поздравления: {e}")
-    
-    await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
 
 async def bonus_tasks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     await update.message.reply_text("🎀 *Выбери, что тебя интересует:* 🎀", parse_mode=ParseMode.MARKDOWN, reply_markup=get_bonus_tasks_keyboard())
 
 # === АДМИН-КОМАНДЫ ===
 async def is_admin(user_id):
     return user_id == ADMIN_ID
 
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        await update.message.reply_text("❌ У вас нет доступа к админ-панели!", reply_markup=get_main_keyboard(user_id))
+        return
+    
+    await update.message.reply_text("🔧 *АДМИН-ПАНЕЛЬ* 🔧\n\nВыберите действие:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+
 async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    context.user_data['admin_action'] = 'set_premium'
+    await update.message.reply_text("👑 *Выдать премиум*\n\nНапишите username пользователя (например @anna) или его ID:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+
+async def admin_remove_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    context.user_data['admin_action'] = 'remove_premium'
+    await update.message.reply_text("🔻 *Снять премиум*\n\nНапишите username пользователя (например @anna) или его ID:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+
+async def admin_add_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    context.user_data['admin_action'] = 'add_tests'
+    await update.message.reply_text("➕ *Добавить тесты*\n\nВведите username и количество через пробел\nНапример: @anna 5", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+
+async def admin_add_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    context.user_data['admin_action'] = 'add_points'
+    await update.message.reply_text("⭐ *Добавить очки*\n\nВведите username и количество через пробел\nНапример: @anna 100", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+
+async def admin_list_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute('SELECT user_id, first_name, username, total_points, unlimited_until FROM users ORDER BY total_points DESC LIMIT 30')
+        rows = c.fetchall()
+        
+        text = "👥 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ* 👥\n\n"
+        for i, row in enumerate(rows, 1):
+            name = row['first_name'] or f"ID {row['user_id']}"
+            username = f"(@{row['username']})" if row['username'] else ''
+            premium = "💎" if row['unlimited_until'] and datetime.fromisoformat(row['unlimited_until']) > datetime.now() else ""
+            text += f"{i}. *{name}* {username} — {row['total_points']}⭐ {premium}\n"
+        
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+    finally:
+        conn.close()
+
+async def admin_reset_weekly_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    reset_weekly_points()
+    await update.message.reply_text("✅ *Недельный рейтинг сброшен!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+
+async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        return
+    
+    action = context.user_data.get('admin_action')
+    if not action:
+        return
+    
+    text = update.message.text.strip()
+    
+    if action == 'set_premium':
+        parts = text.split()
+        target = parts[0].lstrip('@')
+        days = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 30
+        
+        conn = get_db()
+        try:
+            c = conn.cursor()
+            if target.isdigit():
+                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            else:
+                c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
+            row = c.fetchone()
+            
+            if not row:
+                await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
+                del context.user_data['admin_action']
+                return
+            
+            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+            name = row['first_name'] if 'first_name' in row.keys() else target
+            
+            until = (datetime.now() + timedelta(days=days)).isoformat()
+            c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_id))
+            conn.commit()
+            await update.message.reply_text(f"✅ *{name}* получил премиум на {days} дней! 🎉", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+        finally:
+            conn.close()
+    
+    elif action == 'remove_premium':
+        target = text.lstrip('@')
+        conn = get_db()
+        try:
+            c = conn.cursor()
+            if target.isdigit():
+                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            else:
+                c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
+            row = c.fetchone()
+            
+            if not row:
+                await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
+                del context.user_data['admin_action']
+                return
+            
+            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+            name = row['first_name'] if 'first_name' in row.keys() else target
+            
+            c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_id,))
+            conn.commit()
+            await update.message.reply_text(f"✅ У *{name}* удалён премиум", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+        finally:
+            conn.close()
+    
+    elif action == 'add_tests':
+        parts = text.split()
+        if len(parts) < 2:
+            await update.message.reply_text("❌ Введите username и количество", reply_markup=get_admin_keyboard())
+            del context.user_data['admin_action']
+            return
+        
+        target = parts[0].lstrip('@')
+        try:
+            count = int(parts[1])
+        except:
+            await update.message.reply_text("❌ Количество должно быть числом", reply_markup=get_admin_keyboard())
+            del context.user_data['admin_action']
+            return
+        
+        conn = get_db()
+        try:
+            c = conn.cursor()
+            if target.isdigit():
+                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            else:
+                c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
+            row = c.fetchone()
+            
+            if not row:
+                await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
+                del context.user_data['admin_action']
+                return
+            
+            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+            name = row['first_name'] if 'first_name' in row.keys() else target
+            
+            add_tests(target_id, count)
+            await update.message.reply_text(f"✅ *{name}* +{count} тестов! 🎉", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+        finally:
+            conn.close()
+    
+    elif action == 'add_points':
+        parts = text.split()
+        if len(parts) < 2:
+            await update.message.reply_text("❌ Введите username и количество", reply_markup=get_admin_keyboard())
+            del context.user_data['admin_action']
+            return
+        
+        target = parts[0].lstrip('@')
+        try:
+            count = int(parts[1])
+        except:
+            await update.message.reply_text("❌ Количество должно быть числом", reply_markup=get_admin_keyboard())
+            del context.user_data['admin_action']
+            return
+        
+        conn = get_db()
+        try:
+            c = conn.cursor()
+            if target.isdigit():
+                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            else:
+                c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
+            row = c.fetchone()
+            
+            if not row:
+                await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
+                del context.user_data['admin_action']
+                return
+            
+            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+            name = row['first_name'] if 'first_name' in row.keys() else target
+            
+            add_points(target_id, count)
+            await update.message.reply_text(f"✅ *{name}* +{count} очков! ⭐", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+        finally:
+            conn.close()
+    
+    del context.user_data['admin_action']
+
+async def admin_set_premium_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
         return
     
     if not context.args:
@@ -2806,18 +3043,19 @@ async def admin_set_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        user_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
         name = row['first_name'] if 'first_name' in row.keys() else target
         
         until = (datetime.now() + timedelta(days=days)).isoformat()
-        c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, user_id))
+        c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_id))
         conn.commit()
         await update.message.reply_text(f"✅ *{name}* получил премиум на {days} дней! 🎉", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
-async def admin_remove_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
+async def admin_remove_premium_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
         return
     
     if not context.args:
@@ -2838,17 +3076,18 @@ async def admin_remove_premium(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        user_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
         name = row['first_name'] if 'first_name' in row.keys() else target
         
-        c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (user_id,))
+        c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_id,))
         conn.commit()
         await update.message.reply_text(f"✅ У *{name}* удалён премиум", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
-async def admin_add_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
+async def admin_add_tests_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
         return
     
     if len(context.args) < 2:
@@ -2875,16 +3114,17 @@ async def admin_add_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        user_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
         name = row['first_name'] if 'first_name' in row.keys() else target
         
-        add_tests(user_id, count)
+        add_tests(target_id, count)
         await update.message.reply_text(f"✅ *{name}* +{count} тестов! 🎉", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
-async def admin_add_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
+async def admin_add_points_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
         return
     
     if len(context.args) < 2:
@@ -2911,16 +3151,17 @@ async def admin_add_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        user_id = row['user_id'] if 'user_id' in row.keys() else int(target)
+        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
         name = row['first_name'] if 'first_name' in row.keys() else target
         
-        add_points(user_id, count)
+        add_points(target_id, count)
         await update.message.reply_text(f"✅ *{name}* +{count} очков! ⭐", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
-async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
+async def admin_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
         return
     
     conn = get_db()
@@ -2940,8 +3181,9 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     finally:
         conn.close()
 
-async def admin_reset_weekly(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update.effective_user.id):
+async def admin_reset_weekly_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
         return
     
     reset_weekly_points()
@@ -2964,6 +3206,7 @@ async def promocode_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # === ОБРАБОТЧИКИ ===
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    user_id = update.effective_user.id
     
     if text == "🌸 Создать тест":
         await create_test_start(update, context)
@@ -2981,6 +3224,20 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await invite_handler(update, context)
     elif text == "🛍️ Магазин":
         await shop_handler(update, context)
+    elif text == "🔧 Админ-панель" and user_id == ADMIN_ID:
+        await admin_panel(update, context)
+    elif text == "👑 Выдать премиум" and user_id == ADMIN_ID:
+        await admin_set_premium(update, context)
+    elif text == "🔻 Снять премиум" and user_id == ADMIN_ID:
+        await admin_remove_premium(update, context)
+    elif text == "➕ Добавить тесты" and user_id == ADMIN_ID:
+        await admin_add_tests(update, context)
+    elif text == "⭐ Добавить очки" and user_id == ADMIN_ID:
+        await admin_add_points(update, context)
+    elif text == "📋 Список пользователей" and user_id == ADMIN_ID:
+        await admin_list_users(update, context)
+    elif text == "🔄 Сброс недельного рейтинга" and user_id == ADMIN_ID:
+        await admin_reset_weekly_command(update, context)
     elif text == "🔙 Назад":
         await start(update, context)
     elif text == "➕ Добавить вариант":
@@ -2989,10 +3246,13 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await finish_options(update, context)
     else:
         data = context.user_data.get('create_test')
+        admin_action = context.user_data.get('admin_action')
         if data:
             await handle_create_test(update, context)
+        elif admin_action:
+            await handle_admin_input(update, context)
         else:
-            await update.message.reply_text("🌸 *Используй кнопки меню!* 🌸", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+            await update.message.reply_text("🌸 *Используй кнопки меню!* 🌸", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -3096,12 +3356,12 @@ def main():
     app.add_handler(CommandHandler("promocode", promocode_handler))
     
     # Админ-команды
-    app.add_handler(CommandHandler("setpremium", admin_set_premium))
-    app.add_handler(CommandHandler("removepremium", admin_remove_premium))
-    app.add_handler(CommandHandler("addtests", admin_add_tests))
-    app.add_handler(CommandHandler("addpoints", admin_add_points))
-    app.add_handler(CommandHandler("users", admin_users))
-    app.add_handler(CommandHandler("resetweekly", admin_reset_weekly))
+    app.add_handler(CommandHandler("setpremium", admin_set_premium_command))
+    app.add_handler(CommandHandler("removepremium", admin_remove_premium_command))
+    app.add_handler(CommandHandler("addtests", admin_add_tests_command))
+    app.add_handler(CommandHandler("addpoints", admin_add_points_command))
+    app.add_handler(CommandHandler("users", admin_users_command))
+    app.add_handler(CommandHandler("resetweekly", admin_reset_weekly_command))
     
     # Кнопки главного меню
     app.add_handler(MessageHandler(filters.Regex("^🌸 Создать тест$"), create_test_start))
@@ -3112,6 +3372,13 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^📋 Задания$"), daily_tasks_handler))
     app.add_handler(MessageHandler(filters.Regex("^👭 Пригласить$"), invite_handler))
     app.add_handler(MessageHandler(filters.Regex("^🛍️ Магазин$"), shop_handler))
+    app.add_handler(MessageHandler(filters.Regex("^🔧 Админ-панель$"), admin_panel))
+    app.add_handler(MessageHandler(filters.Regex("^👑 Выдать премиум$"), admin_set_premium))
+    app.add_handler(MessageHandler(filters.Regex("^🔻 Снять премиум$"), admin_remove_premium))
+    app.add_handler(MessageHandler(filters.Regex("^➕ Добавить тесты$"), admin_add_tests))
+    app.add_handler(MessageHandler(filters.Regex("^⭐ Добавить очки$"), admin_add_points))
+    app.add_handler(MessageHandler(filters.Regex("^📋 Список пользователей$"), admin_list_users))
+    app.add_handler(MessageHandler(filters.Regex("^🔄 Сброс недельного рейтинга$"), admin_reset_weekly_command))
     app.add_handler(MessageHandler(filters.Regex("^🔙 Назад$"), start))
     
     # Кнопки создания теста
