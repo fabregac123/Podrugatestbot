@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 78.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 79.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -1290,7 +1290,6 @@ def get_rating_keyboard():
 
 # === ОСНОВНЫЕ ХЕНДЛЕРЫ ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Определяем откуда пришёл вызов
     if update.callback_query:
         query = update.callback_query
         await query.answer()
@@ -1961,7 +1960,15 @@ async def save_after_create(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === ОСНОВНЫЕ ХЕНДЛЕРЫ МЕНЮ ===
 async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    if update.callback_query:
+        query = update.callback_query
+        await query.answer()
+        message = query.message
+        user_id = query.from_user.id
+    else:
+        message = update.message
+        user_id = update.effective_user.id
+    
     has_premium = is_premium(user_id)
     
     created_tests = get_user_created_tests(user_id)
@@ -1991,7 +1998,7 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not created_tests and not saved_tests:
         text += "🌸 *У тебя пока нет тестиков* 🌸\n\nСоздай свой первый тест или сохрани чужой!"
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
+    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
                                    reply_markup=get_my_tests_keyboard(bool(created_tests), bool(saved_tests), has_premium))
 
 async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2152,8 +2159,8 @@ async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     completed = 0
     for task in tasks:
         status = "✅" if task['completed'] else "⬜"
-        text += f"{status} *{task['name']}* +{task['points']} ⭐\n"
-        text += f"   _{task['description']}_\n\n"
+        text += f"{status} {task['name']} +{task['points']} ⭐\n"
+        text += f"   {task['description']}\n\n"
         if task['completed']:
             completed += 1
     
@@ -2887,6 +2894,8 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     text = update.message.text.strip()
+    target_user_id = None
+    target_name = None
     
     if action == 'set_premium':
         parts = text.split()
@@ -2897,7 +2906,7 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             c = conn.cursor()
             if target.isdigit():
-                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+                c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
             else:
                 c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
             row = c.fetchone()
@@ -2907,13 +2916,32 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 del context.user_data['admin_action']
                 return
             
-            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-            name = row['first_name'] if 'first_name' in row.keys() else target
+            target_user_id = row['user_id']
+            target_name = row['first_name'] or target
             
             until = (datetime.now() + timedelta(days=days)).isoformat()
-            c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_id))
+            c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_user_id))
             conn.commit()
-            await update.message.reply_text(f"✅ *{name}* получил премиум на {days} дней! 🎉", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+            
+            # Отправляем уведомление пользователю
+            try:
+                await update.message.bot.send_message(
+                    chat_id=target_user_id,
+                    text=f"🎉✨ *ПОЗДРАВЛЯЕМ!* ✨🎉\n\n"
+                         f"💎 Вам выдан *ПРЕМИУМ* на {days} дней!\n\n"
+                         f"Теперь вам доступны все премиум-функции:\n"
+                         f"✅ До 10 вопросов в тесте\n"
+                         f"✅ 16 крутых тем\n"
+                         f"✅ До 10 сохранённых тестов\n"
+                         f"✅ Полная статистика\n"
+                         f"✅ И многое другое!\n\n"
+                         f"💖 Спасибо, что с нами!",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except Exception as e:
+                logger.error(f"Не удалось отправить уведомление: {e}")
+            
+            await update.message.reply_text(f"✅ *{target_name}* получил премиум на {days} дней! 🎉\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
         finally:
             conn.close()
     
@@ -2923,7 +2951,7 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             c = conn.cursor()
             if target.isdigit():
-                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+                c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
             else:
                 c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
             row = c.fetchone()
@@ -2933,12 +2961,25 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 del context.user_data['admin_action']
                 return
             
-            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-            name = row['first_name'] if 'first_name' in row.keys() else target
+            target_user_id = row['user_id']
+            target_name = row['first_name'] or target
             
-            c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_id,))
+            c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_user_id,))
             conn.commit()
-            await update.message.reply_text(f"✅ У *{name}* удалён премиум", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+            
+            # Отправляем уведомление пользователю
+            try:
+                await update.message.bot.send_message(
+                    chat_id=target_user_id,
+                    text=f"🌸 *Уведомление* 🌸\n\n"
+                         f"💎 Ваша премиум-подписка была отключена администратором.\n\n"
+                         f"Вы можете оформить новую подписку в магазине! 🛍️",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except Exception as e:
+                logger.error(f"Не удалось отправить уведомление: {e}")
+            
+            await update.message.reply_text(f"✅ У *{target_name}* удалён премиум\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
         finally:
             conn.close()
     
@@ -2961,7 +3002,7 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             c = conn.cursor()
             if target.isdigit():
-                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+                c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
             else:
                 c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
             row = c.fetchone()
@@ -2971,11 +3012,26 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 del context.user_data['admin_action']
                 return
             
-            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-            name = row['first_name'] if 'first_name' in row.keys() else target
+            target_user_id = row['user_id']
+            target_name = row['first_name'] or target
             
-            add_tests(target_id, count)
-            await update.message.reply_text(f"✅ *{name}* +{count} тестов! 🎉", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+            add_tests(target_user_id, count)
+            
+            test_word = decline_word(count, "тест", "теста", "тестов")
+            
+            # Отправляем уведомление пользователю
+            try:
+                await update.message.bot.send_message(
+                    chat_id=target_user_id,
+                    text=f"🎁 *ПОДАРОК!* 🎁\n\n"
+                         f"Вам начислено *+{count} {test_word}*!\n\n"
+                         f"✨ Создавай новые тесты и делись ими с подружками! ✨",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except Exception as e:
+                logger.error(f"Не удалось отправить уведомление: {e}")
+            
+            await update.message.reply_text(f"✅ *{target_name}* +{count} тестов! 🎉\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
         finally:
             conn.close()
     
@@ -2998,7 +3054,7 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             c = conn.cursor()
             if target.isdigit():
-                c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+                c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
             else:
                 c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
             row = c.fetchone()
@@ -3008,11 +3064,24 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 del context.user_data['admin_action']
                 return
             
-            target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-            name = row['first_name'] if 'first_name' in row.keys() else target
+            target_user_id = row['user_id']
+            target_name = row['first_name'] or target
             
-            add_points(target_id, count)
-            await update.message.reply_text(f"✅ *{name}* +{count} очков! ⭐", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+            add_points(target_user_id, count)
+            
+            # Отправляем уведомление пользователю
+            try:
+                await update.message.bot.send_message(
+                    chat_id=target_user_id,
+                    text=f"⭐ *БОНУС!* ⭐\n\n"
+                         f"Вам начислено *+{count} очков*!\n\n"
+                         f"✨ Продолжай в том же духе! ✨",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except Exception as e:
+                logger.error(f"Не удалось отправить уведомление: {e}")
+            
+            await update.message.reply_text(f"✅ *{target_name}* +{count} очков! ⭐\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
         finally:
             conn.close()
     
@@ -3034,7 +3103,7 @@ async def admin_set_premium_command(update: Update, context: ContextTypes.DEFAUL
     try:
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
         else:
             c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
         row = c.fetchone()
@@ -3043,13 +3112,32 @@ async def admin_set_premium_command(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-        name = row['first_name'] if 'first_name' in row.keys() else target
+        target_user_id = row['user_id']
+        target_name = row['first_name'] or target
         
         until = (datetime.now() + timedelta(days=days)).isoformat()
-        c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_id))
+        c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_user_id))
         conn.commit()
-        await update.message.reply_text(f"✅ *{name}* получил премиум на {days} дней! 🎉", parse_mode=ParseMode.MARKDOWN)
+        
+        # Отправляем уведомление пользователю
+        try:
+            await update.message.bot.send_message(
+                chat_id=target_user_id,
+                text=f"🎉✨ *ПОЗДРАВЛЯЕМ!* ✨🎉\n\n"
+                     f"💎 Вам выдан *ПРЕМИУМ* на {days} дней!\n\n"
+                     f"Теперь вам доступны все премиум-функции:\n"
+                     f"✅ До 10 вопросов в тесте\n"
+                     f"✅ 16 крутых тем\n"
+                     f"✅ До 10 сохранённых тестов\n"
+                     f"✅ Полная статистика\n"
+                     f"✅ И многое другое!\n\n"
+                     f"💖 Спасибо, что с нами!",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Не удалось отправить уведомление: {e}")
+        
+        await update.message.reply_text(f"✅ *{target_name}* получил премиум на {days} дней! 🎉\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
@@ -3067,7 +3155,7 @@ async def admin_remove_premium_command(update: Update, context: ContextTypes.DEF
     try:
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
         else:
             c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
         row = c.fetchone()
@@ -3076,12 +3164,25 @@ async def admin_remove_premium_command(update: Update, context: ContextTypes.DEF
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-        name = row['first_name'] if 'first_name' in row.keys() else target
+        target_user_id = row['user_id']
+        target_name = row['first_name'] or target
         
-        c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_id,))
+        c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_user_id,))
         conn.commit()
-        await update.message.reply_text(f"✅ У *{name}* удалён премиум", parse_mode=ParseMode.MARKDOWN)
+        
+        # Отправляем уведомление пользователю
+        try:
+            await update.message.bot.send_message(
+                chat_id=target_user_id,
+                text=f"🌸 *Уведомление* 🌸\n\n"
+                     f"💎 Ваша премиум-подписка была отключена администратором.\n\n"
+                     f"Вы можете оформить новую подписку в магазине! 🛍️",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Не удалось отправить уведомление: {e}")
+        
+        await update.message.reply_text(f"✅ У *{target_name}* удалён премиум\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
@@ -3105,7 +3206,7 @@ async def admin_add_tests_command(update: Update, context: ContextTypes.DEFAULT_
     try:
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
         else:
             c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
         row = c.fetchone()
@@ -3114,11 +3215,26 @@ async def admin_add_tests_command(update: Update, context: ContextTypes.DEFAULT_
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-        name = row['first_name'] if 'first_name' in row.keys() else target
+        target_user_id = row['user_id']
+        target_name = row['first_name'] or target
         
-        add_tests(target_id, count)
-        await update.message.reply_text(f"✅ *{name}* +{count} тестов! 🎉", parse_mode=ParseMode.MARKDOWN)
+        add_tests(target_user_id, count)
+        
+        test_word = decline_word(count, "тест", "теста", "тестов")
+        
+        # Отправляем уведомление пользователю
+        try:
+            await update.message.bot.send_message(
+                chat_id=target_user_id,
+                text=f"🎁 *ПОДАРОК!* 🎁\n\n"
+                     f"Вам начислено *+{count} {test_word}*!\n\n"
+                     f"✨ Создавай новые тесты и делись ими с подружками! ✨",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Не удалось отправить уведомление: {e}")
+        
+        await update.message.reply_text(f"✅ *{target_name}* +{count} тестов! 🎉\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
@@ -3142,7 +3258,7 @@ async def admin_add_points_command(update: Update, context: ContextTypes.DEFAULT
     try:
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT first_name FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
         else:
             c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
         row = c.fetchone()
@@ -3151,11 +3267,24 @@ async def admin_add_points_command(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(f"❌ Пользователь {target} не найден")
             return
         
-        target_id = row['user_id'] if 'user_id' in row.keys() else int(target)
-        name = row['first_name'] if 'first_name' in row.keys() else target
+        target_user_id = row['user_id']
+        target_name = row['first_name'] or target
         
-        add_points(target_id, count)
-        await update.message.reply_text(f"✅ *{name}* +{count} очков! ⭐", parse_mode=ParseMode.MARKDOWN)
+        add_points(target_user_id, count)
+        
+        # Отправляем уведомление пользователю
+        try:
+            await update.message.bot.send_message(
+                chat_id=target_user_id,
+                text=f"⭐ *БОНУС!* ⭐\n\n"
+                     f"Вам начислено *+{count} очков*!\n\n"
+                     f"✨ Продолжай в том же духе! ✨",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Не удалось отправить уведомление: {e}")
+        
+        await update.message.reply_text(f"✅ *{target_name}* +{count} очков! ⭐\n\nУведомление отправлено!", parse_mode=ParseMode.MARKDOWN)
     finally:
         conn.close()
 
