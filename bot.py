@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 79.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 80.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 
 import logging
@@ -960,7 +960,8 @@ def complete_daily_task(user_id, task_type):
                  (user_id, today, task_type))
         row = c.fetchone()
         
-        if row and row['completed']:
+        if row and row['completed'] == 1:
+            logger.info(f"Задание {task_type} уже выполнено сегодня для {user_id}")
             return False
         
         c.execute('''INSERT INTO daily_tasks (user_id, task_date, task_type, completed) 
@@ -1972,14 +1973,14 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_premium = is_premium(user_id)
     
     created_tests = get_user_created_tests(user_id)
-    saved_tests = get_saved_tests(user_id)
+    saved_tests_list = get_saved_tests(user_id)
     
     created_count = get_user_created_tests_count(user_id)
-    saved_count = len(saved_tests)
+    saved_count = get_saved_tests_count(user_id)
     
     context.user_data['my_tests'] = {
         'created': created_tests, 
-        'saved': saved_tests, 
+        'saved': saved_tests_list, 
         'page': 0,
         'current_list': None
     }
@@ -1992,14 +1993,14 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         created_word = decline_word(created_count, "тест", "теста", "тестов")
         text += f"📝 *Создано мной:* {created_count} {created_word}\n"
         text += f"   *(Показываются последние {created_max} тестов)*\n"
-    if saved_tests:
+    if saved_tests_list:
         saved_word = decline_word(saved_count, "тест", "теста", "тестов")
         text += f"⭐ *Сохранено:* {saved_count}/{saved_max} {saved_word}\n"
-    if not created_tests and not saved_tests:
+    if not created_tests and not saved_tests_list:
         text += "🌸 *У тебя пока нет тестиков* 🌸\n\nСоздай свой первый тест или сохрани чужой!"
     
     await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, 
-                                   reply_markup=get_my_tests_keyboard(bool(created_tests), bool(saved_tests), has_premium))
+                                   reply_markup=get_my_tests_keyboard(bool(created_tests), bool(saved_tests_list), has_premium))
 
 async def show_created_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2449,14 +2450,14 @@ async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     if not friends:
         await query.message.reply_text(
-            "👭✨ *ТОП ПОДРУЖЕК* ✨👭\n\n"
-            "🌸 *Пока никто не проходил твои тестики* 🌸\n\n"
+            "👭✨ ТОП ПОДРУЖЕК ✨👭\n\n"
+            "🌸 Пока никто не проходил твои тестики 🌸\n\n"
             "Создай тест и отправь подружкам! 💕",
             parse_mode=ParseMode.MARKDOWN
         )
         return
     
-    text = (f"👭✨ *ТВОЙ ТОП ПОДРУЖЕК* ✨👭\n\n")
+    text = "👭✨ ТВОЙ ТОП ПОДРУЖЕК ✨👭\n\n"
     
     keyboard = []
     for i, friend in enumerate(friends, 1):
@@ -2472,7 +2473,7 @@ async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         name = friend['friend_name'] or 'Подружка'
         username = f"(@{friend['friend_username']})" if friend['friend_username'] else ''
         test_word = decline_word(friend['tests_count'], "тест", "теста", "тестов")
-        text += f"{medal} *{name}* {username}\n"
+        text += f"{medal} {name} {username}\n"
         text += f"   📊 Средний балл: {friend['avg_score']:.0f}%\n"
         text += f"   📝 Прошла: {friend['tests_count']} {test_word}\n\n"
         
@@ -2759,6 +2760,18 @@ async def take_test_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await finish_test(query, context, data)
         del context.user_data['taking_test']
 
+async def send_greeting_background(bot, user_id, test):
+    """Фоновая отправка поздравления"""
+    try:
+        caption = (f"🎬✨ *ПОЗДРАВЛЕНИЕ ОТ ПОДРУЖКИ* ✨🎬\n\n"
+                   f"💕 *Автор теста приготовила для тебя сюрприз!* 💕")
+        if test.get('greeting_type') == 'voice':
+            await bot.send_voice(chat_id=user_id, voice=test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
+        elif test.get('greeting_type') == 'video':
+            await bot.send_video(chat_id=user_id, video=test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logger.error(f"Ошибка отправки поздравления: {e}")
+
 async def finish_test(query, context, data):
     test = data['test']
     answers = data['answers']
@@ -2778,19 +2791,6 @@ async def finish_test(query, context, data):
     
     points_word = decline_word(int(score), "очко", "очка", "очков")
     
-    # Отправляем голосовое/видео с красивой подписью (если есть)
-    if test.get('greeting_file_id') and context.bot:
-        try:
-            caption = (f"🎬✨ *ПОЗДРАВЛЕНИЕ ОТ ПОДРУЖКИ* ✨🎬\n\n"
-                       f"💕 *Автор теста приготовила для тебя сюрприз!* 💕\n\n"
-                       f"👇 *Наслаждайся* 👇")
-            if test.get('greeting_type') == 'voice':
-                await context.bot.send_voice(chat_id=user.id, voice=test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
-            elif test.get('greeting_type') == 'video':
-                await context.bot.send_video(chat_id=user.id, video=test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
-        except Exception as e:
-            logger.error(f"Ошибка отправки поздравления: {e}")
-    
     text = (f"{diplom['border']}\n"
             f"{diplom['icon']} *{diplom['name']}* {diplom['icon']}\n"
             f"{diplom['border']}\n\n"
@@ -2805,6 +2805,10 @@ async def finish_test(query, context, data):
             f"{diplom['border']}")
     
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
+    
+    # Отправляем голосовое/видео в фоне
+    if test.get('greeting_file_id') and context.bot:
+        asyncio.create_task(send_greeting_background(context.bot, user.id, test))
 
 async def bonus_tasks_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -2923,7 +2927,6 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_user_id))
             conn.commit()
             
-            # Отправляем уведомление пользователю
             try:
                 await update.message.bot.send_message(
                     chat_id=target_user_id,
@@ -2967,7 +2970,6 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_user_id,))
             conn.commit()
             
-            # Отправляем уведомление пользователю
             try:
                 await update.message.bot.send_message(
                     chat_id=target_user_id,
@@ -3019,7 +3021,6 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
             test_word = decline_word(count, "тест", "теста", "тестов")
             
-            # Отправляем уведомление пользователю
             try:
                 await update.message.bot.send_message(
                     chat_id=target_user_id,
@@ -3069,7 +3070,6 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             
             add_points(target_user_id, count)
             
-            # Отправляем уведомление пользователю
             try:
                 await update.message.bot.send_message(
                     chat_id=target_user_id,
@@ -3119,7 +3119,6 @@ async def admin_set_premium_command(update: Update, context: ContextTypes.DEFAUL
         c.execute('UPDATE users SET unlimited_until = ? WHERE user_id = ?', (until, target_user_id))
         conn.commit()
         
-        # Отправляем уведомление пользователю
         try:
             await update.message.bot.send_message(
                 chat_id=target_user_id,
@@ -3170,7 +3169,6 @@ async def admin_remove_premium_command(update: Update, context: ContextTypes.DEF
         c.execute('UPDATE users SET unlimited_until = NULL WHERE user_id = ?', (target_user_id,))
         conn.commit()
         
-        # Отправляем уведомление пользователю
         try:
             await update.message.bot.send_message(
                 chat_id=target_user_id,
@@ -3222,7 +3220,6 @@ async def admin_add_tests_command(update: Update, context: ContextTypes.DEFAULT_
         
         test_word = decline_word(count, "тест", "теста", "тестов")
         
-        # Отправляем уведомление пользователю
         try:
             await update.message.bot.send_message(
                 chat_id=target_user_id,
@@ -3272,7 +3269,6 @@ async def admin_add_points_command(update: Update, context: ContextTypes.DEFAULT
         
         add_points(target_user_id, count)
         
-        # Отправляем уведомление пользователю
         try:
             await update.message.bot.send_message(
                 chat_id=target_user_id,
