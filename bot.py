@@ -800,19 +800,40 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
     finally:
         conn.close()
 
-def can_save_test(user_id):
-    saved_count = get_saved_tests_count(user_id)
-    has_premium = is_premium(user_id)
-    max_saved = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
-    return saved_count < max_saved
-
-def save_test(user_id, test_id):
+def can_save_test(user_id, test_id):
+    """Проверяет, можно ли сохранить тест"""
     conn = get_db()
     try:
-        if not can_save_test(user_id):
+        c = conn.cursor()
+        
+        # Проверяем, не свой ли это тест
+        c.execute('SELECT creator_id FROM tests WHERE id = ?', (test_id,))
+        row = c.fetchone()
+        if row and row['creator_id'] == user_id:
+            return False  # Нельзя сохранять свой тест
+        
+        # Проверяем лимит сохранённых
+        saved_count = get_saved_tests_count(user_id)
+        has_premium = is_premium(user_id)
+        max_saved = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
+        return saved_count < max_saved
+    finally:
+        conn.close()
+
+def save_test(user_id, test_id):
+    """Сохраняет тест (если он не свой)"""
+    conn = get_db()
+    try:
+        # Проверяем, не свой ли тест
+        c = conn.cursor()
+        c.execute('SELECT creator_id FROM tests WHERE id = ?', (test_id,))
+        row = c.fetchone()
+        if row and row['creator_id'] == user_id:
+            return False  # Нельзя сохранять свой тест
+        
+        if not can_save_test(user_id, test_id):
             return False
         
-        c = conn.cursor()
         c.execute('INSERT INTO saved_tests (user_id, test_id) VALUES (?, ?)', (user_id, test_id))
         conn.commit()
         return True
@@ -842,9 +863,9 @@ def get_saved_tests(user_id):
         c.execute('''SELECT t.id, t.title, t.creator_name, t.creator_id, t.creator_username, t.questions
                      FROM saved_tests s 
                      JOIN tests t ON s.test_id = t.id 
-                     WHERE s.user_id = ? AND t.creator_id != ?
+                     WHERE s.user_id = ?
                      ORDER BY s.created_at DESC
-                     LIMIT ?''', (user_id, user_id, limit))
+                     LIMIT ?''', (user_id, limit))
         tests = []
         for row in c.fetchall():
             test = dict(row)
@@ -857,10 +878,16 @@ def get_saved_tests(user_id):
         conn.close()
 
 def get_saved_tests_count(user_id):
+    """Возвращает количество сохранённых тестов (исключая свои)"""
     conn = get_db()
     try:
         c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM saved_tests WHERE user_id = ?', (user_id,))
+        c.execute('''
+            SELECT COUNT(*) 
+            FROM saved_tests s 
+            JOIN tests t ON s.test_id = t.id 
+            WHERE s.user_id = ? AND t.creator_id != ?
+        ''', (user_id, user_id))
         return c.fetchone()[0]
     finally:
         conn.close()
@@ -1270,8 +1297,13 @@ def get_test_action_keyboard(test_id, is_owner=False, is_saved=False):
             keyboard.append([InlineKeyboardButton("⭐ Сохранить", callback_data=f"save_test_{test_id}")])
         else:
             keyboard.append([InlineKeyboardButton("🗑️ Удалить из сохранённых", callback_data=f"unsave_test_{test_id}")])
+    
     keyboard.append([InlineKeyboardButton("📖 Посмотреть тест", callback_data=f"view_full_test_{test_id}")])
-    keyboard.append([InlineKeyboardButton("📤 Поделиться", callback_data=f"share_test_{test_id}")])
+    
+    # Кнопка "Поделиться" только для своих тестов
+    if is_owner:
+        keyboard.append([InlineKeyboardButton("📤 Поделиться", callback_data=f"share_test_{test_id}")])
+    
     keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_my_tests")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -1322,12 +1354,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not existing:
         create_user(user.id, user.username, user.first_name, referred_by)
         if referred_by:
-            await send_referral_notification(bot, referred_by, user.first_name or f"ID {user.id}", is_new_user=True)
+            await send_referral_notification(bot, referred_by, user.first_name or "Подружка", user.username, is_new_user=True)
             await apply_referral_bonus(referred_by, user.id)
     else:
         update_user(user.id, user.username, user.first_name)
         if referred_by and not existing.get('referred_by'):
-            await send_referral_notification(bot, referred_by, user.first_name or f"ID {user.id}", is_new_user=False)
+            await send_referral_notification(bot, referred_by, user.first_name or "Подружка", user.username, is_new_user=False)
             await apply_referral_bonus(referred_by, user.id)
     
     if test_id:
@@ -1377,7 +1409,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
 
-async def send_referral_notification(bot, referrer_id, new_user_name, is_new_user=True):
+async def send_referral_notification(bot, referrer_id, new_user_name, new_user_username=None, is_new_user=True):
+    """Отправляет уведомление о переходе по реферальной ссылке"""
     try:
         referrer = get_user(referrer_id)
         if not referrer:
@@ -1385,23 +1418,32 @@ async def send_referral_notification(bot, referrer_id, new_user_name, is_new_use
         
         stats = get_referral_stats(referrer_id)
         
+        # Формируем имя с username если есть
+        user_display = new_user_name
+        if new_user_username:
+            user_display += f" (@{new_user_username})"
+        
         if is_new_user:
-            text = (f"🌸✨ *НОВЕНЬКАЯ ПОДРУЖКА* ✨🌸\n\n"
-                    f"💕 *{new_user_name}* перешла по твоей ссылочке!\n\n"
-                    f"🎁 Ты получила *+1 тестик* и *+200 очков* в подарок!\n"
-                    f"👭 Всего подружек: {stats['total']}\n"
-                    f"⭐ Активных: {stats['active']}\n\n"
-                    f"✨ *Продолжай приглашать девчонок!* ✨")
+            text = (f"🎉✨ *УРА! НОВАЯ ПОДРУЖКА!* ✨🎉\n\n"
+                    f"💕 *{user_display}* присоединилась к боту по твоей ссылке!\n\n"
+                    f"🎁 *Ты получаешь:* \n"
+                    f"   ➕ *+1 тестик*\n"
+                    f"   ⭐ *+200 очков*\n\n"
+                    f"📊 *Твоя статистика приглашений:*\n"
+                    f"   👭 Всего подружек: *{stats['total']}*\n"
+                    f"   ⭐ Активных: *{stats['active']}*\n\n"
+                    f"💖 *Продолжай приглашать подружек и получай ещё больше бонусов!* 💖")
         else:
-            text = (f"🌸 *ПОДРУЖКА УЖЕ С НАМИ!* 🌸\n\n"
-                    f"💕 *{new_user_name}* уже была зарегистрирована в боте!\n\n"
-                    f"👭 Всего подружек: {stats['total']}\n"
-                    f"⭐ Активных: {stats['active']}\n\n"
-                    f"💖 *Всё равно спасибо, что зовёшь подруг!* 💖")
+            text = (f"🌸 *ТВОЯ ПОДРУЖКА УЖЕ С НАМИ* 🌸\n\n"
+                    f"💕 *{user_display}* уже была зарегистрирована в боте!\n\n"
+                    f"📊 *Статистика приглашений:*\n"
+                    f"   👭 Всего подружек: *{stats['total']}*\n"
+                    f"   ⭐ Активных: *{stats['active']}*\n\n"
+                    f"💫 *Отправляй ссылку другим подружкам, чтобы получить бонусы!* 💫")
         
         await safe_send_message(bot, referrer_id, text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
-        logger.error(f"Ошибка уведомления: {e}")
+        logger.error(f"Ошибка уведомления о реферале: {e}")
 
 async def safe_send_message(bot, chat_id, text, **kwargs):
     try:
@@ -2449,17 +2491,21 @@ async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         conn.close()
     
     if not friends:
-        await query.message.reply_text(
-            "👭✨ ТОП ПОДРУЖЕК ✨👭\n\n"
-            "🌸 Пока никто не проходил твои тестики 🌸\n\n"
+        await query.message.edit_text(
+            "👭✨ *ТОП ПОДРУЖЕК* ✨👭\n\n"
+            "🌸 *Пока никто не проходил твои тестики* 🌸\n\n"
             "Создай тест и отправь подружкам! 💕",
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Назад", callback_data="back_to_stats")
+            ]])
         )
         return
     
-    text = "👭✨ ТВОЙ ТОП ПОДРУЖЕК ✨👭\n\n"
+    text = "👭✨ *ТВОЙ ТОП ПОДРУЖЕК* ✨👭\n\n"
     
     keyboard = []
+    
     for i, friend in enumerate(friends, 1):
         if i == 1:
             medal = "🥇"
@@ -2473,20 +2519,47 @@ async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         name = friend['friend_name'] or 'Подружка'
         username = f"(@{friend['friend_username']})" if friend['friend_username'] else ''
         test_word = decline_word(friend['tests_count'], "тест", "теста", "тестов")
-        text += f"{medal} {name} {username}\n"
-        text += f"   📊 Средний балл: {friend['avg_score']:.0f}%\n"
-        text += f"   📝 Прошла: {friend['tests_count']} {test_word}\n\n"
         
+        text += f"{medal} *{i}. {name}* {username}\n"
+        text += f"   📊 Средний балл: *{friend['avg_score']:.0f}%*\n"
+        text += f"   📝 Прошла: *{friend['tests_count']}* {test_word}\n"
+        
+        # Для премиум-пользователей добавляем кнопку "Детальные ответы"
         if has_premium:
-            keyboard.append([InlineKeyboardButton(
-                f"📊 Детальные ответы", 
-                callback_data=f"friend_details_{friend['friend_id']}"
-            )])
+            text += f"   👆 Нажми на кнопку ниже, чтобы увидеть ответы\n"
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"📊 Ответы {name}", 
+                    callback_data=f"friend_details_{friend['friend_id']}"
+                )
+            ])
+        
+        text += "\n"
     
-    keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_stats")])
+    # Добавляем рекламу премиума для бесплатных пользователей
+    if not has_premium:
+        text += (f"\n✨ *ХОЧЕШЬ УВИДЕТЬ ПОДРОБНУЮ СТАТИСТИКУ?* ✨\n"
+                 f"💎 *Приобрети ПРЕМИУМ и смотри:*\n"
+                 f"• 📋 Как именно ответила каждая подружка\n"
+                 f"• ❌ Где она ошиблась\n"
+                 f"• ✅ Какие ответы были правильными\n\n"
+                 f"🎁 *Всего за 199₽ в месяц!*\n\n"
+                 f"👇 *Нажми на кнопку ниже:* 👇")
+        
+        keyboard.append([
+            InlineKeyboardButton("💎 Купить премиум", callback_data="shop")
+        ])
     
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, 
-                                  reply_markup=InlineKeyboardMarkup(keyboard))
+    # Кнопка "Назад" всегда в конце
+    keyboard.append([
+        InlineKeyboardButton("🔙 Назад к статистике", callback_data="back_to_stats")
+    ])
+    
+    await query.message.edit_text(
+        text, 
+        parse_mode=ParseMode.MARKDOWN, 
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 async def show_friend_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2495,56 +2568,105 @@ async def show_friend_details(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = query.from_user.id
     friend_id = int(query.data.split("_")[2])
     
+    # Проверяем премиум
     if not is_premium(user_id):
+        await query.answer("💎 Эта функция доступна только в ПРЕМИУМ!", show_alert=True)
+        
+        # Отправляем сообщение с предложением купить премиум
         await query.message.reply_text(
-            "💎 *Только для ПРЕМИУМ!* 💎\n\n"
-            "Купи премиум, чтобы видеть детальные ответы подружек!",
+            "💎✨ *ТОЛЬКО ДЛЯ ПРЕМИУМ!* ✨💎\n\n"
+            "🌸 *Хочешь увидеть, как подружки ответили на твои вопросы?*\n\n"
+            "💫 *С ПРЕМИУМ ты сможешь:*\n"
+            "• 📋 Смотреть детальные ответы каждой подружки\n"
+            "• ❌ Видеть, где они ошиблись\n"
+            "• ✅ Сравнивать их ответы с правильными\n"
+            "• 📊 Анализировать, кто знает тебя лучше всех\n\n"
+            "🎁 *ВСЕГО ЗА 199₽ В МЕСЯЦ!*\n\n"
+            "👇 *Нажми на кнопку и открой все возможности:* 👇",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛍️ Купить премиум", callback_data="shop")]])
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💎 Купить премиум", callback_data="shop")],
+                [InlineKeyboardButton("🔙 Назад", callback_data="top_friends")]
+            ])
         )
         return
     
     answers_details = get_friend_answers_details(user_id, friend_id)
     
     if not answers_details:
-        await query.message.reply_text("💔 *Нет данных об ответах*", parse_mode=ParseMode.MARKDOWN)
+        await query.message.edit_text(
+            "💔 *Нет данных об ответах* 💔\n\n"
+            "Подружка ещё не проходила твои тесты или данные устарели.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Назад", callback_data="top_friends")
+            ]])
+        )
         return
     
-    text = f"📝✨ *ОТВЕТЫ ПОДРУЖКИ* ✨📝\n\n"
+    # Формируем текст с ответами
+    text = "📝✨ *ОТВЕТЫ ПОДРУЖКИ* ✨📝\n\n"
     
-    for test in answers_details:
+    for test_idx, test in enumerate(answers_details[:3]):  # Показываем только 3 последних теста
         friend_name = test.get('friend_name', 'Подружка')
         text += f"👤 *{friend_name}*\n"
         text += f"📋 *Тест:* {test['title']}\n"
         text += f"🎯 *Результат:* {test['score']:.0f}%\n"
         text += f"📅 *Дата:* {test['completed_at'][:10]}\n\n"
-        text += f"┌─── *ОТВЕТЫ НА ВОПРОСЫ* ───┐\n\n"
         
-        for i, q in enumerate(test['questions']):
+        for i, q in enumerate(test['questions'][:5]):  # Показываем первые 5 вопросов
             if i < len(test['answers']) and test['answers'][i] < len(test['options'][i]):
                 user_answer = test['options'][i][test['answers'][i]]
                 is_correct = test['answers'][i] == test['correct_answers'][i]
                 correct_answer = test['options'][i][test['correct_answers'][i]]
                 
                 if is_correct:
-                    text += f"✅ *Вопрос {i+1}:* {q}\n"
-                    text += f"   └── Ответ: {user_answer} ✓\n\n"
+                    text += f"✅ *{i+1}. {q}*\n"
+                    text += f"   └── {user_answer}\n\n"
                 else:
-                    text += f"❌ *Вопрос {i+1}:* {q}\n"
-                    text += f"   ├── Её ответ: {user_answer} ✗\n"
-                    text += f"   └── Правильно: {correct_answer} ✓\n\n"
-            else:
-                text += f"❓ *Вопрос {i+1}:* {q}\n"
-                text += f"   └── Нет ответа\n\n"
+                    text += f"❌ *{i+1}. {q}*\n"
+                    text += f"   ├── Ответила: {user_answer}\n"
+                    text += f"   └── Правильно: {correct_answer}\n\n"
         
-        text += "└" + "─" * 30 + "┘\n\n"
+        if len(test['questions']) > 5:
+            text += f"   ... и ещё {len(test['questions']) - 5} вопросов\n"
         
-        if len(text) > 3500:
-            text += "\n... и ещё результаты (слишком много)"
-            break
+        text += "▸▸▸▸▸▸▸▸▸▸▸▸▸▸▸▸\n\n"
     
-    keyboard = [[InlineKeyboardButton("🔙 Назад к подружкам", callback_data="top_friends")]]
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+    if len(answers_details) > 3:
+        text += f"\n✨ *И ещё {len(answers_details) - 3} пройденных тестов!* ✨"
+    
+    # Создаём клавиатуру с навигацией
+    keyboard = []
+    
+    # Если есть другие друзья, добавляем кнопку возврата к списку
+    keyboard.append([InlineKeyboardButton("🔙 Назад к списку подруг", callback_data="top_friends")])
+    keyboard.append([InlineKeyboardButton("📊 К статистике", callback_data="back_to_stats")])
+    
+    # Разбиваем длинный текст, если нужно
+    if len(text) > 4000:
+        # Отправляем частями
+        parts = [text[i:i+4000] for i in range(0, len(text), 4000)]
+        
+        # Первая часть с клавиатурой
+        await query.message.edit_text(
+            parts[0],
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        # Остальные части без клавиатуры
+        for part in parts[1:]:
+            await query.message.reply_text(
+                part,
+                parse_mode=ParseMode.MARKDOWN
+            )
+    else:
+        await query.message.edit_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 async def back_to_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2574,8 +2696,24 @@ async def invite_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"3️⃣ Ты получаешь +1 тестик и +200 очков!\n\n"
             f"✨ *Чем больше подруг, тем веселее!* ✨")
     
+    # Новый текст для кнопки "Поделиться"
+    share_text = (
+        f"💕 *Привет, подружка!* 💕\n\n"
+        f"👭 *Твоя подруга приглашает тебя в бот* 👭\n"
+        f"✨ *PodrugaTestBot* — здесь мы создаём тесты о себе,\n"
+        f"отправляем их подружкам и узнаём, кто знает нас лучше всех! ✨\n\n"
+        f"🌸 *Что тебя ждёт?* 🌸\n"
+        f"• 📝 Создавай крутые тесты о себе\n"
+        f"• 💕 Делись ими с подружками\n"
+        f"• 🎯 Узнавай, насколько хорошо тебя знают\n"
+        f"• 🎓 Получай милые дипломы\n"
+        f"• 🏆 Соревнуйся в рейтинге\n\n"
+        f"👇 *Переходи по ссылке и присоединяйся!* 👇\n\n"
+        f"{link}"
+    )
+    
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("👭 Поделиться", switch_inline_query=f"💕 Привет! Подружка приглашает тебя пройти тест 💕\n\n🎀 Узнай, насколько хорошо ты её знаешь! 🎀\n\n👉 Переходи по ссылке и начинай! 👈\n\n{link}")]
+        [InlineKeyboardButton("👭 Поделиться", switch_inline_query=share_text)]
     ])
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard, disable_web_page_preview=False)
@@ -2632,7 +2770,7 @@ async def save_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("💔 *Нельзя сохранить свой собственный тестик!* 💔\nОн уже есть в разделе «Мои тесты»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
         return
     
-    if not can_save_test(user_id):
+    if not can_save_test(user_id, test_id):
         has_premium = is_premium(user_id)
         max_saved = MAX_SAVED_PREMIUM if has_premium else MAX_SAVED_FREE
         await query.message.reply_text(
@@ -2675,9 +2813,37 @@ async def confirm_share_handler(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
 async def cancel_share_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик отмены после создания теста"""
     query = update.callback_query
-    await query.answer()
-    await query.message.reply_text("❌ *Отменено* ❌", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(query.from_user.id))
+    await query.answer("❌ Отменено")
+    
+    user_id = query.from_user.id
+    
+    try:
+        # Пробуем удалить сообщение с кнопками
+        await query.message.delete()
+    except Exception as e:
+        logger.warning(f"Не удалось удалить сообщение: {e}")
+        # Если не удалось удалить - редактируем текст
+        try:
+            await query.message.edit_text(
+                "❌ *Отменено* ❌",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except:
+            pass
+    
+    # Отправляем новое сообщение с главным меню
+    await context.bot.send_message(
+        chat_id=user_id,
+        text="🌸 *Главное меню* 🌸\n\nЧто хочешь сделать?",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_main_keyboard(user_id)
+    )
+    
+    # Очищаем временные данные создания теста
+    if 'create_test' in context.user_data:
+        del context.user_data['create_test']
 
 async def back_to_groups_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
