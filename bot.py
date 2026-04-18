@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Бот для создания тестов для подруг @PodrugaTestBot
-Версия: 81.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Версия: 82.0 - ФИНАЛЬНАЯ ВЕРСИЯ
 """
 
 import logging
@@ -123,7 +123,7 @@ QUESTIONS_BY_GROUP = {
     'humor': [
         "🏃‍♀️ Что я делаю, когда опаздываю? 🏃‍♀️",
         "🤪 Моя самая странная привычка? 🤪",
-        "💃 Как я танцую? 💃",
+        "💃 Как я танцую? �03",
         "🍪 Что я ем ночью? 🍪",
         "👀 Как я вру? 👀",
         "😱 Что делаю при виде паука? 😱",
@@ -580,7 +580,9 @@ def get_user_by_referral_code(code: str):
         c = conn.cursor()
         c.execute('SELECT user_id FROM users WHERE referral_code = ?', (code,))
         row = c.fetchone()
-        return row['user_id'] if row else None
+        result = row['user_id'] if row else None
+        logger.info(f"🔍 Поиск по коду {code}: найден {result}")
+        return result
     finally:
         conn.close()
 
@@ -808,6 +810,7 @@ def create_test(creator_id, creator_name, creator_username, title, questions, op
         
         add_points(creator_id, 20)
         add_weekly_points(creator_id, 20)
+        logger.info(f"🎯 Вызов complete_daily_task для create_test, user={creator_id}")
         complete_daily_task(creator_id, 'create_test')
         add_achievement(creator_id, 'first_test')
         
@@ -916,6 +919,7 @@ async def save_attempt_async(test_id, friend_id, friend_name, friend_username, a
         if test:
             add_points(test['creator_id'], 15)
             add_weekly_points(test['creator_id'], 15)
+            logger.info(f"🎯 Вызов complete_daily_task для get_result, user={test['creator_id']}")
             complete_daily_task(test['creator_id'], 'get_result')
             
             if bot:
@@ -923,6 +927,7 @@ async def save_attempt_async(test_id, friend_id, friend_name, friend_username, a
         
         add_points(friend_id, int(score))
         add_weekly_points(friend_id, int(score))
+        logger.info(f"📝 Вызов complete_daily_task для complete_test, user={friend_id}")
         complete_daily_task(friend_id, 'complete_test')
         
         conn.close()
@@ -982,19 +987,29 @@ def get_daily_tasks(user_id):
         c = conn.cursor()
         today = datetime.now().date().isoformat()
         tasks = []
-        for task_type in DAILY_TASKS:
+        
+        logger.info(f"🔍 Получение заданий для user={user_id}, date={today}")
+        
+        for task_type, task_info in DAILY_TASKS.items():
             c.execute('SELECT completed FROM daily_tasks WHERE user_id = ? AND task_date = ? AND task_type = ?', 
                      (user_id, today, task_type))
             row = c.fetchone()
             completed = row['completed'] if row else 0
+            
+            logger.info(f"   📋 {task_type}: completed={completed}")
+            
             tasks.append({
                 'type': task_type,
-                'name': DAILY_TASKS[task_type]['name'],
-                'points': DAILY_TASKS[task_type]['points'],
-                'description': DAILY_TASKS[task_type]['description'],
+                'name': task_info['name'],
+                'points': task_info['points'],
+                'description': task_info['description'],
                 'completed': completed
             })
+        
         return tasks
+    except Exception as e:
+        logger.error(f"Ошибка получения заданий для пользователя {user_id}: {e}")
+        return []
     finally:
         conn.close()
 
@@ -1004,12 +1019,14 @@ def complete_daily_task(user_id, task_type):
         c = conn.cursor()
         today = datetime.now().date().isoformat()
         
+        logger.info(f"🔍 Вызов complete_daily_task: user={user_id}, task={task_type}, date={today}")
+        
         c.execute('SELECT completed FROM daily_tasks WHERE user_id = ? AND task_date = ? AND task_type = ?', 
                  (user_id, today, task_type))
         row = c.fetchone()
         
         if row and row['completed'] == 1:
-            logger.info(f"Задание {task_type} уже выполнено сегодня для {user_id}")
+            logger.info(f"⚠️ Задание {task_type} уже выполнено сегодня для {user_id}")
             return False
         
         c.execute('''INSERT INTO daily_tasks (user_id, task_date, task_type, completed) 
@@ -1019,14 +1036,21 @@ def complete_daily_task(user_id, task_type):
         
         if task_type in DAILY_TASKS:
             points = DAILY_TASKS[task_type]['points']
-            add_points(user_id, points)
-            add_weekly_points(user_id, points)
-            logger.info(f"✅ Пользователю {user_id} начислено {points} очков за задание {task_type}")
-        
-        conn.commit()
-        return True
+            c.execute('''UPDATE users 
+                         SET total_points = total_points + ?, 
+                             weekly_points = weekly_points + ? 
+                         WHERE user_id = ?''', (points, points, user_id))
+            
+            conn.commit()
+            logger.info(f"✅ Задание {task_type} выполнено! Пользователь {user_id} получил {points} очков")
+            
+            return True
+        else:
+            conn.commit()
+            return True
+            
     except Exception as e:
-        logger.error(f"Ошибка выполнения задания: {e}")
+        logger.error(f"❌ Ошибка выполнения задания {task_type} для пользователя {user_id}: {e}")
         return False
     finally:
         conn.close()
@@ -1177,147 +1201,178 @@ def create_gradient_background(width, height, color1, color2):
     
     return image
 
-def draw_ornate_border(draw, width, height, color):
-    draw.rectangle([8, 8, width-9, height-9], outline=color, width=4)
-    draw.rectangle([14, 14, width-15, height-15], outline=color, width=1)
-    draw.rectangle([18, 18, width-19, height-19], outline=color, width=1)
-
-def draw_double_border(draw, width, height, color1, color2):
-    draw.rectangle([25, 25, width-26, height-26], outline=color1, width=2)
-    draw.rectangle([30, 30, width-31, height-31], outline=color2, width=1)
-
-def draw_corner_ornaments(draw, width, height, color):
-    corners = [(35, 35), (width-35, 35), (35, height-35), (width-35, height-35)]
-    for x, y in corners:
-        draw.ellipse([x-8, y-8, x+8, y+8], outline=color, width=2)
-        draw.ellipse([x-4, y-4, x+4, y+4], fill=color)
-
-def draw_banner(draw, width, color1, color2):
-    y1, y2 = 70, 78
-    draw.rectangle([50, y1, width-50, y2], fill=color1)
-    draw.rectangle([50, y2, width-50, y2+2], fill=color2)
-
-def draw_banner_bottom(draw, width, height, color1, color2):
-    y1, y2 = 570, 578
-    draw.rectangle([50, y1, width-50, y2], fill=color1)
-    draw.rectangle([50, y2, width-50, y2+2], fill=color2)
-
-def draw_text_with_shadow(draw, position, text, font, color):
-    x, y = position
-    draw.text((x+1, y+1), text, fill='#CCCCCC', font=font)
-    draw.text((x, y), text, fill=color, font=font)
-
-def draw_sparkles(draw, width, height, color1, color2):
-    import random
-    random.seed(42)
-    sparkles = ["✨", "⭐", "💫", "🌟", "✦", "✧"]
-    for _ in range(12):
-        x = random.randint(60, width-60)
-        y = random.randint(150, 550)
-        sparkle = random.choice(sparkles)
-        try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", random.randint(14, 20))
-        except:
-            font = ImageFont.load_default()
-        color = color1 if random.random() > 0.5 else color2
-        draw.text((x, y), sparkle, fill=color, font=font)
-
 async def generate_diploma_image(user_name, test_title, score, status, points, diplom_type='free'):
     diplom = DIPLOMS.get(diplom_type, DIPLOMS['free'])
-    width, height = 900, 700
+    width, height = 1000, 800
     
     image = create_gradient_background(width, height, diplom.get('bg_start', '#FFF5F7'), diplom.get('bg_end', '#FFE4E9'))
     draw = ImageDraw.Draw(image)
     
     try:
-        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 38)
-        font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
-        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 22)
-        font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
-        font_cursive = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSerif-Italic.ttf", 20)
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+        font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 26)
+        font_text = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
+        font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 56)
+        font_medium = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 18)
     except:
         try:
-            font_title = ImageFont.truetype("arial.ttf", 38)
-            font_subtitle = ImageFont.truetype("arial.ttf", 24)
-            font_text = ImageFont.truetype("arial.ttf", 22)
-            font_big = ImageFont.truetype("arial.ttf", 52)
-            font_cursive = ImageFont.truetype("arial.ttf", 20)
+            font_title = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 42)
+            font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 26)
+            font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 22)
+            font_big = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 56)
+            font_medium = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 28)
+            font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 18)
         except:
             font_title = ImageFont.load_default()
             font_subtitle = ImageFont.load_default()
             font_text = ImageFont.load_default()
             font_big = ImageFont.load_default()
-            font_cursive = ImageFont.load_default()
+            font_medium = ImageFont.load_default()
+            font_small = ImageFont.load_default()
     
     border_color = diplom.get('color', '#FF69B4')
     accent_color = diplom.get('accent', '#FFB6C1')
+    dark_color = '#333333'
     
-    draw_ornate_border(draw, width, height, border_color)
-    draw_double_border(draw, width, height, border_color, accent_color)
-    draw_corner_ornaments(draw, width, height, border_color)
-    draw_banner(draw, width, border_color, accent_color)
+    draw.rounded_rectangle([15, 15, width-15, height-15], radius=20, outline=border_color, width=5)
+    draw.rounded_rectangle([25, 25, width-25, height-25], radius=15, outline=accent_color, width=2)
+    draw.rounded_rectangle([32, 32, width-32, height-32], radius=12, outline=border_color, width=1)
+    
+    draw.rounded_rectangle([80, 65, width-80, 75], radius=5, fill=border_color)
+    draw.rounded_rectangle([100, 75, width-100, 80], radius=3, fill=accent_color)
     
     title_text = diplom['name']
     bbox = draw.textbbox((0, 0), title_text, font=font_title)
     title_width = bbox[2] - bbox[0]
-    x, y = width//2 - title_width//2, 95
-    draw.text((x+2, y+2), title_text, fill='#CCCCCC', font=font_title)
+    x, y = width//2 - title_width//2, 100
+    
+    draw.text((x+3, y+3), title_text, fill='#00000030', font=font_title)
     draw.text((x, y), title_text, fill=border_color, font=font_title)
     
-    subtitle = "СВИДЕТЕЛЬСТВО ДРУЖБЫ"
+    subtitle = "СВИДЕТЕЛЬСТВО О ДРУЖБЕ"
     bbox = draw.textbbox((0, 0), subtitle, font=font_subtitle)
     sub_width = bbox[2] - bbox[0]
-    draw.text((width//2 - sub_width//2, 140), subtitle, fill=accent_color, font=font_subtitle)
+    draw.text((width//2 - sub_width//2, 150), subtitle, fill=accent_color, font=font_subtitle)
     
     icon = diplom['icon']
-    icon_y = 180
-    circle_center = (width//2, icon_y + 30)
-    draw.ellipse([circle_center[0]-45, circle_center[1]-45, circle_center[0]+45, circle_center[1]+45], outline=border_color, width=3)
-    draw.ellipse([circle_center[0]-40, circle_center[1]-40, circle_center[0]+40, circle_center[1]+40], outline=accent_color, width=1)
+    icon_y = 190
+    
+    circle_center = (width//2, icon_y + 40)
+    draw.ellipse([circle_center[0]-55, circle_center[1]-55, 
+                  circle_center[0]+55, circle_center[1]+55], 
+                 outline=border_color, width=4)
+    draw.ellipse([circle_center[0]-48, circle_center[1]-48, 
+                  circle_center[0]+48, circle_center[1]+48], 
+                 outline=accent_color, width=2)
+    draw.ellipse([circle_center[0]-42, circle_center[1]-42, 
+                  circle_center[0]+42, circle_center[1]+42], 
+                 fill='#FFFFFF20', outline=border_color, width=1)
     
     bbox = draw.textbbox((0, 0), icon, font=font_big)
     icon_width = bbox[2] - bbox[0]
     draw.text((width//2 - icon_width//2, icon_y), icon, fill=border_color, font=font_big)
     
-    y = 280
-    draw.rounded_rectangle([40, y-10, width-40, y+220], radius=15, fill='#FFFFFF', outline=accent_color, width=2)
+    y = 310
+    info_height = 280
+    draw.rounded_rectangle([60, y-15, width-60, y+info_height], 
+                           radius=20, fill='#FFFFFF40', outline=accent_color, width=2)
     
-    y += 20
-    draw_text_with_shadow(draw, (60, y), "👤 Подружка:", font_subtitle, '#555555')
-    name_display = user_name[:25] + "..." if len(user_name) > 25 else user_name
-    draw_text_with_shadow(draw, (220, y), name_display, font_subtitle, border_color)
+    y += 15
     
-    y += 45
-    draw_text_with_shadow(draw, (60, y), "📝 Тест:", font_subtitle, '#555555')
-    test_display = test_title[:30] + "..." if len(test_title) > 30 else test_title
-    draw_text_with_shadow(draw, (220, y), test_display, font_subtitle, border_color)
-    
-    y += 45
-    draw_text_with_shadow(draw, (60, y), "🎯 Результат:", font_subtitle, '#555555')
-    score_color = '#4CAF50' if score >= 70 else '#FF9800' if score >= 50 else '#F44336'
-    draw_text_with_shadow(draw, (220, y), f"{score:.0f}%", font_subtitle, score_color)
-    
-    y += 45
-    status_short = status[:35] + "..." if len(status) > 35 else status
-    bbox = draw.textbbox((0, 0), status_short, font=font_text)
-    status_width = bbox[2] - bbox[0]
-    draw_text_with_shadow(draw, (width//2 - status_width//2, y), status_short, font_text, border_color)
+    draw.text((100, y), "👤 Подружка", fill=dark_color, font=font_medium)
+    name_display = user_name[:30] + "..." if len(user_name) > 30 else user_name
+    bbox = draw.textbbox((0, 0), name_display, font=font_medium)
+    draw.text((width-100-bbox[2], y), name_display, fill=border_color, font=font_medium)
     
     y += 40
-    draw_text_with_shadow(draw, (60, y), "💗 Получено очков:", font_subtitle, '#555555')
-    draw_text_with_shadow(draw, (260, y), f"+{points}", font_subtitle, '#FFD700')
+    draw.line([(100, y), (width-100, y)], fill=accent_color, width=1)
     
-    y = 530
+    y += 15
+    draw.text((100, y), "📝 Название теста", fill=dark_color, font=font_text)
+    test_display = test_title[:35] + "..." if len(test_title) > 35 else test_title
+    draw.text((100, y+25), test_display, fill=border_color, font=font_small)
+    
+    y += 55
+    draw.line([(100, y), (width-100, y)], fill=accent_color, width=1)
+    
+    y += 15
+    draw.text((100, y), "🎯 Результат", fill=dark_color, font=font_medium)
+    score_color = '#4CAF50' if score >= 70 else '#FF9800' if score >= 50 else '#F44336'
+    score_text = f"{score:.0f}%"
+    bbox = draw.textbbox((0, 0), score_text, font=font_medium)
+    draw.text((width-100-bbox[2], y), score_text, fill=score_color, font=font_medium)
+    
+    y += 30
+    bar_width = 400
+    bar_x = width//2 - bar_width//2
+    draw.rounded_rectangle([bar_x, y, bar_x+bar_width, y+12], radius=6, fill='#E0E0E0')
+    fill_width = int(bar_width * score / 100)
+    if fill_width > 0:
+        draw.rounded_rectangle([bar_x, y, bar_x+fill_width, y+12], radius=6, fill=score_color)
+    
+    y += 30
+    draw.line([(100, y), (width-100, y)], fill=accent_color, width=1)
+    
+    y += 15
+    status_short = status[:40] + "..." if len(status) > 40 else status
+    bbox = draw.textbbox((0, 0), status_short, font=font_subtitle)
+    status_width = bbox[2] - bbox[0]
+    draw.text((width//2 - status_width//2, y), status_short, fill=border_color, font=font_subtitle)
+    
+    y += 35
+    draw.text((100, y), "💗 Получено очков", fill=dark_color, font=font_medium)
+    points_text = f"+{points}"
+    bbox = draw.textbbox((0, 0), points_text, font=font_medium)
+    draw.text((width-100-bbox[2], y), points_text, fill='#FFD700', font=font_medium)
+    
+    y = 620
+    
+    congrats = [
+        "Поздравляем с успешным прохождением теста!",
+        "Ты доказала, что настоящая дружба существует!",
+        "Продолжай узнавать своих подруг ещё лучше!"
+    ]
+    
+    y += 10
+    for line in congrats:
+        bbox = draw.textbbox((0, 0), line, font=font_small)
+        line_width = bbox[2] - bbox[0]
+        draw.text((width//2 - line_width//2, y), line, fill=dark_color, font=font_small)
+        y += 22
+    
+    y += 15
     signature = diplom['text']
-    bbox = draw.textbbox((0, 0), signature, font=font_cursive)
+    bbox = draw.textbbox((0, 0), signature, font=font_medium)
     sig_width = bbox[2] - bbox[0]
-    draw_text_with_shadow(draw, (width//2 - sig_width//2, y), signature, font_cursive, border_color)
+    draw.text((width//2 - sig_width//2, y), signature, fill=border_color, font=font_medium)
     
-    draw_banner_bottom(draw, width, height, border_color, accent_color)
-    draw_sparkles(draw, width, height, border_color, accent_color)
+    draw.rounded_rectangle([80, height-80, width-80, height-70], radius=5, fill=border_color)
+    draw.rounded_rectangle([100, height-75, width-100, height-72], radius=3, fill=accent_color)
     
-    date_text = datetime.now().strftime("%d.%m.%Y")
-    draw.text((width-150, height-35), date_text, fill=accent_color, font=font_text)
+    date_text = f"Выдано: {datetime.now().strftime('%d.%m.%Y')}"
+    bbox = draw.textbbox((0, 0), date_text, font=font_small)
+    draw.text((width-150, height-50), date_text, fill=accent_color, font=font_small)
+    
+    sparkles = ["✨", "⭐", "💫", "🌟", "✦"]
+    import random
+    random.seed(42)
+    
+    for _ in range(8):
+        x = random.randint(50, width-50)
+        y = random.randint(180, 580)
+        sparkle = random.choice(sparkles)
+        size = random.randint(16, 24)
+        try:
+            font_sparkle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", size)
+        except:
+            font_sparkle = font_small
+        color = border_color if random.random() > 0.5 else accent_color
+        draw.text((x, y), sparkle, fill=color+'60', font=font_sparkle)
+    
+    cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
+    cert_text = f"ID: {cert_id}"
+    draw.text((50, height-50), cert_text, fill=accent_color+'80', font=font_small)
     
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format='PNG', quality=95)
@@ -1531,11 +1586,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     existing = get_user(user.id)
     
     if not existing:
+        logger.info(f"🆕 Новый пользователь: {user.id}, реферер: {referred_by}")
         create_user(user.id, user.username, user.first_name, referred_by)
         if referred_by:
             await send_referral_notification(bot, referred_by, user.first_name or "Подружка", user.username, is_new_user=True)
             await apply_referral_bonus(referred_by, user.id)
     else:
+        logger.info(f"🔄 Существующий пользователь: {user.id}, реферер: {referred_by}")
         update_user(user.id, user.username, user.first_name)
         if referred_by and not existing.get('referred_by'):
             await send_referral_notification(bot, referred_by, user.first_name or "Подружка", user.username, is_new_user=False)
@@ -1592,32 +1649,35 @@ async def send_referral_notification(bot, referrer_id, new_user_name, new_user_u
     try:
         referrer = get_user(referrer_id)
         if not referrer:
+            logger.error(f"Реферер {referrer_id} не найден")
             return
         
         stats = get_referral_stats(referrer_id)
+        
         user_display = new_user_name
         if new_user_username:
             user_display += f" (@{new_user_username})"
         
         if is_new_user:
-            text = (f"🎉✨ *УРА! НОВАЯ ПОДРУЖКА!* ✨🎉\n\n"
+            text = (f"🎉✨ *УРА! ТВОЯ ПОДРУГА С НАМИ!* ✨🎉\n\n"
                     f"💕 *{user_display}* присоединилась к боту по твоей ссылке!\n\n"
-                    f"🎁 *Ты получаешь:* \n"
+                    f"🎁 *Ты получаешь:*\n"
                     f"   ➕ *+1 тестик*\n"
                     f"   ⭐ *+200 очков*\n\n"
                     f"📊 *Твоя статистика приглашений:*\n"
                     f"   👭 Всего подружек: *{stats['total']}*\n"
                     f"   ⭐ Активных: *{stats['active']}*\n\n"
-                    f"💖 *Продолжай приглашать подружек и получай ещё больше бонусов!* 💖")
+                    f"💖 *Продолжай приглашать подружек и получай бонусы!* 💖")
         else:
-            text = (f"🌸 *ТВОЯ ПОДРУЖКА УЖЕ С НАМИ* 🌸\n\n"
+            text = (f"🌸 *ТВОЯ ПОДРУГА УЖЕ БЫЛА С НАМИ* 🌸\n\n"
                     f"💕 *{user_display}* уже была зарегистрирована в боте!\n\n"
-                    f"📊 *Статистика приглашений:*\n"
+                    f"📊 *Твоя статистика приглашений:*\n"
                     f"   👭 Всего подружек: *{stats['total']}*\n"
                     f"   ⭐ Активных: *{stats['active']}*\n\n"
                     f"💫 *Отправляй ссылку другим подружкам, чтобы получить бонусы!* 💫")
         
         await safe_send_message(bot, referrer_id, text, parse_mode=ParseMode.MARKDOWN)
+        logger.info(f"✅ Уведомление отправлено рефереру {referrer_id} о пользователе {user_display}")
     except Exception as e:
         logger.error(f"Ошибка уведомления о реферале: {e}")
 
@@ -1635,17 +1695,26 @@ async def apply_referral_bonus(referrer_id: int, new_user_id: int):
     conn = get_db()
     try:
         c = conn.cursor()
+        
+        c.execute('SELECT id FROM referrals WHERE referrer_id = ? AND referred_id = ?', (referrer_id, new_user_id))
+        if c.fetchone():
+            logger.info(f"⚠️ Бонус за пользователя {new_user_id} уже начислялся рефереру {referrer_id}")
+            return False
+        
         c.execute('UPDATE users SET referral_count = referral_count + 1, tests_available = tests_available + 1 WHERE user_id = ?', (referrer_id,))
         c.execute('INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)', (referrer_id, new_user_id))
         c.execute('UPDATE users SET referred_by = ? WHERE user_id = ?', (referrer_id, new_user_id))
         conn.commit()
+        
         add_points(referrer_id, 200)
         add_weekly_points(referrer_id, 200)
         add_achievement(referrer_id, 'first_invite')
         complete_daily_task(referrer_id, 'invite_friend')
+        
+        logger.info(f"✅ Бонус начислен рефереру {referrer_id} за пользователя {new_user_id}")
         return True
     except Exception as e:
-        logger.error(f"Ошибка бонуса: {e}")
+        logger.error(f"Ошибка начисления бонуса: {e}")
         return False
     finally:
         conn.close()
@@ -1693,11 +1762,8 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Например: «Насколько хорошо ты меня знаешь?» или «Твоя любимая подружка»\n\n")
     
     if not has_premium:
-        text += (f"💎✨ *С ПРЕМИУМ ТЫ СМОЖЕШЬ:* ✨💎\n"
-                 f"🎤 Добавить *голосовое поздравление*\n"
-                 f"🎥 Добавить *видео-поздравление*\n"
-                 f"💕 Твоя подружка получит особенный сюрприз после прохождения теста!\n\n"
-                 f"👇 *Узнать подробнее:* /shop\n\n")
+        text += (f"💎 *Премиум* — голосовые и видео-поздравления! 💎\n"
+                 f"✨ *Узнать больше:* кнопка «🛍️ Магазин»\n\n")
     
     text += (f"✏️ *Напиши название теста:*\n\n"
              f"❌ *Отмена* - чтобы выйти")
@@ -2413,6 +2479,8 @@ async def share_test_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text += f"💖 *Поделись им с подружкой через кнопку ниже!* 💖"
     
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_confirm_keyboard(test_id))
+    
+    logger.info(f"📤 Вызов complete_daily_task для send_test, user={user_id}")
     complete_daily_task(user_id, 'send_test')
 
 async def daily_tasks_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2553,7 +2621,7 @@ async def rating_all_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     top_users = get_top_users_full(10)
     my_stats = get_user_full_stats(query.from_user.id)
     
-    text = f"🏆✨ *ТОП-10 ЗА ВСЁ ВРЕМЯ* ✨🏆\n\n"
+    text = f"🏆✨ ТОП-10 ЗА ВСЁ ВРЕМЯ ✨🏆\n\n"
     
     for i, u in enumerate(top_users, 1):
         if i == 1:
@@ -2571,8 +2639,8 @@ async def rating_all_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         passed_word = decline_word(u['tests_passed'], "тест", "теста", "тестов")
         invited_word = decline_word(u['referral_count'], "подругу", "подруги", "подруг")
         
-        text += f"{medal} *{i}. {name}* {username}\n"
-        text += f"   ⭐ Очки: *{u['total_points']}*\n"
+        text += f"{medal} {i}. {name} {username}\n"
+        text += f"   ⭐ Очки: {u['total_points']}\n"
         text += f"   📝 Создала: {u['tests_created']} {created_word} | 🎯 Прошла: {u['tests_passed']} {passed_word}\n"
         text += f"   👭 Пригласила: {u['referral_count']} {invited_word}\n\n"
     
@@ -2580,7 +2648,7 @@ async def rating_all_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     passed_word = decline_word(my_stats['passed'], "тест", "теста", "тестов")
     invited_word = decline_word(my_stats['invited'], "подругу", "подруги", "подруг")
     
-    text += f"📊 *Твоя статистика:*\n"
+    text += f"📊 Твоя статистика:\n"
     text += f"   ⭐ Очки: {my_stats['points']}\n"
     text += f"   📝 Создала: {my_stats['created']} {created_word}\n"
     text += f"   🎯 Прошла: {my_stats['passed']} {passed_word}\n"
@@ -2591,11 +2659,11 @@ async def rating_all_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         c = conn.cursor()
         c.execute('SELECT COUNT(*) + 1 FROM users WHERE total_points > ?', (my_stats['points'],))
         place = c.fetchone()[0]
-        text += f"\n📊 *Твоё место в рейтинге:* {place}"
+        text += f"\n📊 Твоё место в рейтинге: {place}"
     finally:
         conn.close()
     
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_rating_keyboard())
+    await query.message.edit_text(text, reply_markup=get_rating_keyboard())
 
 async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2604,7 +2672,7 @@ async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     top_users = get_top_users_weekly(10)
     my_stats = get_user_full_stats(query.from_user.id)
     
-    text = f"🏆✨ *ТОП-10 ЗА НЕДЕЛЮ* ✨🏆\n\n"
+    text = f"🏆✨ ТОП-10 ЗА НЕДЕЛЮ ✨🏆\n\n"
     
     for i, u in enumerate(top_users, 1):
         if i == 1:
@@ -2622,22 +2690,22 @@ async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         passed_word = decline_word(u['tests_passed'], "тест", "теста", "тестов")
         invited_word = decline_word(u['referral_count'], "подругу", "подруги", "подруг")
         
-        text += f"{medal} *{i}. {name}* {username}\n"
-        text += f"   ⭐ Очки за неделю: *{u['weekly_points']}*\n"
+        text += f"{medal} {i}. {name} {username}\n"
+        text += f"   ⭐ Очки за неделю: {u['weekly_points']}\n"
         text += f"   📝 Создала: {u['tests_created']} {created_word} | 🎯 Прошла: {u['tests_passed']} {passed_word}\n"
         text += f"   👭 Пригласила: {u['referral_count']} {invited_word}\n\n"
     
     if len(top_users) >= 3:
-        text += f"🎁✨ *ОСОБАЯ НАГРАДА* ✨🎁\n\n"
-        text += f"👑 *1 место* — 1000 рублей!\n"
-        text += f"🥈 *2 место* — 500 рублей!\n"
-        text += f"🥉 *3 место* — 300 рублей!\n\n"
+        text += f"🎁✨ ОСОБАЯ НАГРАДА ✨🎁\n\n"
+        text += f"👑 1 место — 1000 рублей!\n"
+        text += f"🥈 2 место — 500 рублей!\n"
+        text += f"🥉 3 место — 300 рублей!\n\n"
     
     created_word = decline_word(my_stats['created'], "тест", "теста", "тестов")
     passed_word = decline_word(my_stats['passed'], "тест", "теста", "тестов")
     invited_word = decline_word(my_stats['invited'], "подругу", "подруги", "подруг")
     
-    text += f"📊 *Твоя статистика за неделю:*\n"
+    text += f"📊 Твоя статистика за неделю:\n"
     text += f"   ⭐ Очки: {my_stats['weekly_points']}\n"
     text += f"   📝 Создала: {my_stats['created']} {created_word}\n"
     text += f"   🎯 Прошла: {my_stats['passed']} {passed_word}\n"
@@ -2648,11 +2716,11 @@ async def rating_week_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         c = conn.cursor()
         c.execute('SELECT COUNT(*) + 1 FROM users WHERE weekly_points > ?', (my_stats['weekly_points'],))
         place = c.fetchone()[0]
-        text += f"\n📊 *Твоё место в недельном рейтинге:* {place}"
+        text += f"\n📊 Твоё место в недельном рейтинге: {place}"
     finally:
         conn.close()
     
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_rating_keyboard())
+    await query.message.edit_text(text, reply_markup=get_rating_keyboard())
 
 async def top_friends_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2865,7 +2933,7 @@ async def shop_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ *До 10 сохранённых* тестов (вместо 3)\n"
             f"✅ *Полная статистика* по тестам\n"
             f"✅ *5 красивых дипломов* на выбор\n"
-            f"✅ *Эксклюзивные рамки* и значки\n"
+            f"✅ *Голосовые и видео поздравления*\n"
             f"✅ *Бесконечные тесты* — твори сколько хочешь!\n\n"
             f"🎁 *СТОИМОСТЬ ПРЕМИУМ:*\n\n"
             f"• 💎 30 дней — *199 ₽*\n"
