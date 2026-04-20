@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — простой бот для тестов между подругами
-Версия: 3.0 — ЛЁГКАЯ + АДМИН-ПАНЕЛЬ
+Версия: 3.0 — ЛЁГКАЯ + АДМИН-ПАНЕЛЬ + ВСЕ ИСПРАВЛЕНИЯ
 """
 
 import logging
@@ -33,7 +33,7 @@ DB_NAME = 'bot_simple.db'
 FREE_TESTS_LIMIT = 3
 MAX_QUESTIONS = 5
 MAX_OPTIONS = 4
-ADMIN_ID = 710623393  # Твой ID
+ADMIN_ID = 710623393
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,34 +51,121 @@ def decline_word(number, word1, word2, word3):
 # === ТЕМЫ ВОПРОСОВ ===
 QUESTION_GROUPS = {
     'friendship': '👭 Дружба',
-    'love': '💖 Любовь',
-    'humor': '😂 Приколы',
-    'myself': '🌸 Про меня'
+    'love': '💖 Любовь и краши',
+    'style': '👗 Стиль и мода',
+    'beauty': '💄 Бьюти и уход',
+    'social': '📱 Соцсети и блогерство',
+    'school': '📚 Школа и учёба',
+    'dreams': '✨ Мечты и будущее',
+    'kpop': '🎤 K-pop и айдолы',
+    'food': '🍕 Еда и вкусняшки',
+    'humor': '😂 Приколы и мемы'
 }
 
+# === ВОПРОСЫ ПО КАТЕГОРИЯМ (по 20 в каждой) ===
 QUESTIONS = {
     'friendship': [
-        "✨ Как долго мы дружим? ✨", "💕 Где мы познакомились? 💕", "🎨 Мой любимый цвет? 🎨",
-        "🍕 Моя любимая еда? 🍕", "💃 Моё любимое занятие? 💃", "📺 Мой любимый сериал? 📺",
-        "😤 Что меня бесит? 😤", "🌟 Моя заветная мечта? 🌟", "🎵 Мой любимый исполнитель? 🎵", "📚 Моя любимая книга? 📚"
+        "✨ Как долго мы дружим?", "💕 Где мы познакомились?", "🎨 Мой любимый цвет?",
+        "🌸 Какое моё хобби?", "📱 Как часто я тебе пишу?", "🎁 Что я дарила тебе на ДР?",
+        "😤 Что меня бесит в людях?", "🌟 Моя заветная мечта?", "🎵 Мой любимый исполнитель?",
+        "📺 Наш любимый сериал?", "🍕 Что мы всегда заказываем вместе?", "💃 Моё любимое занятие?",
+        "😢 Из-за чего я могу заплакать?", "🤫 Мой секрет, который знаешь только ты?",
+        "🎬 Фильм, который мы смотрели вместе?", "📸 Наше лучшее совместное фото?",
+        "💬 Фраза, которую я часто говорю?", "🛍️ Где мы любим гулять?",
+        "😴 В какое время я обычно ложусь спать?", "💖 Что я ценю в нашей дружбе больше всего?"
     ],
     'love': [
-        "💘 Какой тип парня мне нравится? 💘", "💕 Что для меня важно в отношениях? 💕",
-        "😳 Как я показываю симпатию? 😳", "🌹 Моё идеальное свидание? 🌹", "✨ Что меня влюбляет? ✨",
-        "🎁 Какой подарок я мечтаю получить? 🎁", "🙄 Что меня раздражает в парнях? 🙄",
-        "📱 Мой краш из тиктока? 📱", "💋 Первый поцелуй - это важно? 💋", "💍 Хочу ли я замуж? 💍"
+        "💘 Какой тип парней мне нравится?", "😳 Как я показываю симпатию?", "🌹 Моё идеальное свидание?",
+        "💕 Что для меня важно в отношениях?", "👀 На что я обращаю внимание в первую очередь?",
+        "💋 Первый поцелуй — это важно?", "📱 Мой краш из Тиктока?",
+        "🎤 Любимый певец, в которого я влюблена?", "💍 Хочу ли я замуж?",
+        "😍 Сколько у меня было крашей?", "💌 Писала ли я любовные записки?",
+        "🤝 Дружба между парнем и девушкой возможна?", "💔 Как я переживаю расставания?",
+        "🎭 Какой типаж парней из фильмов мне нравится?", "📝 Веду ли я дневник про любовь?",
+        "😊 Что меня влюбляет в человека?", "🙄 Что меня раздражает в парнях?",
+        "💬 Обсуждаю ли я крашей с подругами?", "🎁 Какой подарок от парня я хочу?",
+        "💎 Верю ли я в любовь с первого взгляда?"
+    ],
+    'style': [
+        "👗 Мой любимый стиль одежды?", "🎀 Любимый цвет в одежде?", "👟 Кроссовки или каблуки?",
+        "🛍️ Мой любимый бренд одежды?", "👖 Джинсы или платья?", "🧥 Какую верхнюю одежду я ношу чаще?",
+        "💍 Люблю ли я аксессуары?", "👜 Какая у меня сумка?", "💇‍♀️ Как я обычно укладываю волосы?",
+        "💅 Делаю ли я маникюр?", "👓 Ношу ли я очки или линзы?", "🎒 Что всегда в моей сумке?",
+        "👚 Какой мой любимый топ?", "🧢 Ношу ли я кепки?", "💄 Крашусь ли я каждый день?",
+        "👠 Какая обувь у меня самая любимая?", "📸 В какой одежде я чаще фоткаюсь?",
+        "🎨 Какие цвета преобладают в моём гардеробе?", "🪞 Сколько времени я собираюсь на выход?",
+        "✨ Что я никогда не надену?"
+    ],
+    'beauty': [
+        "💄 Моя любимая помада?", "🧴 Какой уход за кожей я использую?", "💅 Какой маникюр я люблю?",
+        "👁️ Крашу ли я ресницы тушью?", "💇‍♀️ Как часто я стригусь?", "🎨 Крашу ли я волосы?",
+        "🧖‍♀️ Делаю ли я маски для лица?", "🪞 Моё любимое зеркало?", "🌸 Мои любимые духи?",
+        "💦 Умываюсь ли я пенкой или гелем?", "🧼 Как часто я принимаю ванну?",
+        "💤 Делаю ли я ночной уход?", "☀️ Пользуюсь ли я SPF?", "💋 Блеск или матовая помада?",
+        "👩‍🎤 Какой макияж я делаю на вечеринку?", "🧴 Какой у меня тип кожи?",
+        "💆‍♀️ Делаю ли я массаж лица?", "🦷 Как часто я чищу зубы?",
+        "🧴 Моё любимое масло для тела?", "✨ Что для меня главное в уходе за собой?"
+    ],
+    'social': [
+        "📱 Моя любимая соцсеть?", "📸 Что я пощу в сторис?", "❤️ Сколько лайков я обычно набираю?",
+        "🦄 Мой любимый фильтр?", "👯 С кем я снимаю контент?", "📺 Какого блогера я смотрю?",
+        "🎵 Мой любимый звук из Тиктока?", "🔒 У меня приватный или открытый аккаунт?",
+        "💬 Сколько времени я сижу в Телеграме?", "📊 Слежу ли я за статистикой?",
+        "🎬 Снимаю ли я Reels?", "📝 Пишу ли я посты или только сторис?",
+        "🤳 Делаю ли я селфи каждый день?", "📱 Сколько приложений у меня на телефоне?",
+        "🔋 На сколько процентов у меня обычно зарядка?", "🎮 Играю ли я в мобильные игры?",
+        "📹 Смотрю ли я YouTube?", "🎤 Записываю ли я голосовые сообщения?",
+        "💬 В каких чатах я сижу?", "📲 Как часто я меняю аватарку?"
+    ],
+    'school': [
+        "📖 Мой любимый предмет?", "😫 Самый ненавистный урок?", "📱 Что я делаю на скучных уроках?",
+        "👯 С кем я сижу за партой?", "🤫 Как я списываю?", "🍔 Что я ем в столовой?",
+        "👩‍🏫 Моя любимая учительница?", "👻 Кого я боюсь в школе?", "🏆 Моя лучшая оценка?",
+        "🎒 Что всегда в моём рюкзаке?", "📚 Читаю ли я книги вне программы?",
+        "✏️ Какими ручками я пишу?", "📅 Какой день недели самый тяжёлый?",
+        "🏃‍♀️ Люблю ли я физкультуру?", "🎨 Какой предмет хочу добавить в расписание?",
+        "📝 Делаю ли я домашку сразу?", "🤝 С кем я делаю проекты?", "🎓 Хочу ли я в университет?",
+        "📊 Переживаю ли я из-за оценок?", "🌟 Моё главное школьное достижение?"
+    ],
+    'dreams': [
+        "✈️ Куда я мечтаю поехать?", "🌟 Моя самая заветная мечта?", "🚗 Какую машину я хочу?",
+        "☀️ Мой идеальный день?", "🛍️ Что я хочу купить прямо сейчас?", "📝 Что у меня в вишлисте?",
+        "🏠 Где я хочу жить?", "💎 О чём я мечтаю каждый день?", "🎓 Кем я вижу себя через 5 лет?",
+        "💍 Какой я представляю свою свадьбу?", "🐶 Хочу ли я завести питомца?",
+        "🎤 Хочу ли я стать знаменитой?", "📸 О чём я мечтаю, глядя на фото?",
+        "🌈 В какой стране хочу побывать больше всего?", "🎬 Какой фильм я хочу, чтобы сняли про меня?",
+        "💼 Какую работу я хочу?", "🏝️ Остров или горы?", "🛫 Что первое я сделаю, когда разбогатею?",
+        "💖 Сколько детей я хочу?", "✨ Какое желание я загадаю на падающую звезду?"
+    ],
+    'kpop': [
+        "🎤 Моя любимая k-pop группа?", "💕 Мой биас?", "🎧 Какой трек сейчас на повторе?",
+        "💜 На каком концерте я была/мечтаю побывать?", "⭐ С кем из айдолов хочу встретиться?",
+        "💃 Какой танец я выучила?", "🫶 Кто мой вайб?", "🎁 Какой мерч я хочу?",
+        "📺 Моё любимое k-pop шоу?", "🌙 Какой юнит или соло я люблю?",
+        "🎵 Первая k-pop песня, которую я услышала?", "💿 Сколько у меня альбомов?",
+        "📱 Какое фото айдола у меня на заставке?", "🎤 Пою ли я k-pop в караоке?",
+        "🪭 Коллекционирую ли я фотокарты?", "💬 С кем я обсуждаю k-pop?",
+        "🎬 Смотрю ли я дорамы с айдолами?", "💘 Кто мой bias wrecker?",
+        "🎶 Какая группа у меня в топ-3?", "🌟 Какой концепт я люблю больше всего?"
+    ],
+    'food': [
+        "🍕 Моё любимое блюдо?", "😖 Что я ненавижу есть?", "👩‍🍳 Что я умею готовить?",
+        "☕ Что я заказываю в кафе?", "🍰 Какие сладости я люблю?", "🍳 Что я ем на завтрак?",
+        "🏠 Моё любимое кафе?", "🚫 Какую еду я никогда не буду есть?", "🍜 Лапша или картошка?",
+        "🥤 Мой любимый напиток?", "🍦 Какое мороженое я выбираю?", "🍫 Шоколад или чипсы?",
+        "🥗 Ем ли я салаты?", "🍔 Фастфуд или домашняя еда?", "🧋 Люблю ли я баббл ти?",
+        "🍣 Ем ли я суши?", "🌮 Люблю ли я мексиканскую еду?", "🍩 Какие пончики я люблю?",
+        "🧀 Добавляю ли я сыр везде?", "🍇 Какой фрукт мой любимый?"
     ],
     'humor': [
-        "🏃‍♀️ Что я делаю, когда опаздываю? 🏃‍♀️", "🤪 Моя самая странная привычка? 🤪",
-        "💃 Как я танцую? 💃", "🍪 Что я ем ночью? 🍪", "👀 Как я вру? 👀",
-        "😱 Что делаю при виде паука? 😱", "🐌 Мой смешной страх? 🐌", "💬 Моя коронная фраза? 💬",
-        "🛌 Как я сплю? 🛌", "🎤 Моя песня в караоке? 🎤"
-    ],
-    'myself': [
-        "💪 Моя суперсила? 💪", "🦄 Что мне нужно для счастья? 🦄", "🎧 Как я справляюсь со стрессом? 🎧",
-        "👩‍🎤 Кем я хочу стать в будущем? 👩‍🎤", "💅 Что я больше всего люблю в себе? 💅",
-        "😨 Мой главный страх? 😨", "✨ Моя фишка? ✨", "🌈 Что меня вдохновляет? 🌈",
-        "🕰️ Моя лучшая черта характера? 🕰️", "💎 Моё самое большое достижение? 💎"
+        "🏃‍♀️ Что я делаю, когда опаздываю?", "🤪 Моя самая странная привычка?",
+        "💃 Как я танцую, когда никто не видит?", "🍪 Что я ем ночью?", "👀 Как я вру?",
+        "😱 Что делаю при виде паука?", "🐌 Мой смешной страх?", "💬 Моя коронная фраза?",
+        "🛌 В какой позе я сплю?", "🎤 Моя песня в караоке?", "😂 Над каким мемом я смеялась последним?",
+        "📸 Моё самое смешное фото?", "🎭 Какое лицо я корчу на селфи?", "🤣 Как я смеюсь?",
+        "🪄 Что бы я сделала, если бы стала невидимкой?", "🎁 Самый странный подарок, который я получала?",
+        "💇‍♀️ Моя самая неудачная стрижка?", "👗 Что я надела не по погоде?",
+        "📱 Что я случайно лайкнула?", "😅 Попадала ли я в неловкие ситуации?"
     ]
 }
 
@@ -365,6 +452,13 @@ def get_admin_keyboard():
 def get_cancel_keyboard():
     return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True, one_time_keyboard=True)
 
+def get_options_keyboard():
+    return ReplyKeyboardMarkup(
+        [["➕ Добавить вариант", "✅ Готово", "🔙 Назад"]],
+        resize_keyboard=True, 
+        one_time_keyboard=True
+    )
+
 def get_question_groups_keyboard():
     keyboard = []
     row = []
@@ -377,6 +471,13 @@ def get_question_groups_keyboard():
         keyboard.append(row)
     keyboard.append([InlineKeyboardButton("🎲 Случайные вопросы", callback_data="group_random")])
     return InlineKeyboardMarkup(keyboard)
+
+def get_question_choice_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Другой вопрос", callback_data="next_question"),
+         InlineKeyboardButton("🎲 Случайный", callback_data="random_question")],
+        [InlineKeyboardButton("✅ Этот вопрос", callback_data="select_question")]
+    ])
 
 def get_test_actions_keyboard(test_id):
     return InlineKeyboardMarkup([
@@ -427,13 +528,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tests_created = user_data.get('tests_created', 0)
     is_prem = is_premium(user.id)
     
-    text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
-            f"Создай тест о себе и отправь подружке!\n"
-            f"Узнайте, насколько хорошо вы друг друга знаете 💕\n\n"
-            f"🎁 *Бесплатно:* {FREE_TESTS_LIMIT} теста\n"
-            f"📊 *Создано:* {tests_created}/{FREE_TESTS_LIMIT}\n"
-            f"{'💎 *Статус:* ПРЕМИУМ (безлимит) ✨' if is_prem else ''}\n\n"
-            f"Выбирай действие в меню 👇")
+    if is_prem:
+        text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
+                f"Создай тест о себе и отправь подружке!\n"
+                f"Узнайте, насколько хорошо вы друг друга знаете 💕\n\n"
+                f"💎 *Статус:* ПРЕМИУМ ✨\n"
+                f"♾️ *Безлимитные тесты*\n"
+                f"📊 *Создано:* {tests_created} тестов\n\n"
+                f"Выбирай действие в меню 👇")
+    else:
+        text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
+                f"Создай тест о себе и отправь подружке!\n"
+                f"Узнайте, насколько хорошо вы друг друга знаете 💕\n\n"
+                f"🎁 *Бесплатно:* {FREE_TESTS_LIMIT} теста\n"
+                f"📊 *Создано:* {tests_created}/{FREE_TESTS_LIMIT}\n\n"
+                f"💎 Хочешь безлимит и красивый диплом? Жми «💎 Премиум»\n\n"
+                f"Выбирай действие в меню 👇")
     
     await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
 
@@ -585,39 +695,42 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             data['total_q'] = count
             data['current_q'] = 0
             data['questions_data'] = []
-            data['step'] = 'selecting_question'
             
-            questions = data.get('group_questions', [])
-            question_text = questions[data['current_q']]
-            data['current_question'] = question_text
-            data['current_options'] = []
-            data['waiting_for_option'] = True
-            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🎤 Голосовое", callback_data="greeting_voice"),
+                 InlineKeyboardButton("🎥 Видео", callback_data="greeting_video")],
+                [InlineKeyboardButton("⏭️ Пропустить", callback_data="greeting_skip")]
+            ])
             await update.message.reply_text(
-                f"📝 Вопрос {data['current_q'] + 1}/{data['total_q']}\n\n{question_text}\n\n✏️ Напиши вариант ответа №1:",
-                reply_markup=get_cancel_keyboard()
+                "🎬✨ *ДОБАВЬ ПОЗДРАВЛЕНИЕ!* ✨🎬\n\n"
+                "Твоя подружка получит его после прохождения теста!\n\n"
+                "👇 Выбери тип или пропусти:",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboard
             )
+            data['step'] = 'greeting'
+            
         except ValueError:
             await update.message.reply_text("⚠️ Напиши число!")
     
-    elif step == 'selecting_question':
+    elif step == 'collecting_options':
         if data.get('waiting_for_option'):
             if len(text) > 50:
                 await update.message.reply_text("⚠️ Слишком длинный вариант! До 50 символов.")
                 return
+            
             data['current_options'].append(text)
-            if len(data['current_options']) < MAX_OPTIONS:
-                await update.message.reply_text(
-                    f"✅ Вариант {len(data['current_options'])} добавлен!\n✏️ Напиши вариант №{len(data['current_options']) + 1}:",
-                    reply_markup=get_cancel_keyboard()
-                )
-            else:
-                options = data['current_options']
-                keyboard = []
-                for i, opt in enumerate(options):
-                    keyboard.append([InlineKeyboardButton(f"{i+1}. {opt[:30]}", callback_data=f"correct_{i}")])
-                await update.message.reply_text("❓ Какой вариант ПРАВИЛЬНЫЙ?", reply_markup=InlineKeyboardMarkup(keyboard))
-                data['waiting_for_option'] = False
+            data['waiting_for_option'] = False
+            
+            options_list = "\n".join([f"{i+1}. {o}" for i, o in enumerate(data['current_options'])])
+            
+            await update.message.reply_text(
+                f"✅ *Вариант {len(data['current_options'])} добавлен!* ✅\n\n"
+                f"📋 *Твои варианты:*\n{options_list}\n\n"
+                f"➕ *Можешь добавить ещё или нажать «Готово»*",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_options_keyboard()
+            )
 
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -633,7 +746,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
         for g in QUESTION_GROUPS.keys():
             all_questions.extend(QUESTIONS.get(g, []))
         random.shuffle(all_questions)
-        data['group_questions'] = all_questions[:20]
+        data['group_questions'] = all_questions[:30]
     else:
         data['group_questions'] = QUESTIONS.get(group, []).copy()
         random.shuffle(data['group_questions'])
@@ -641,6 +754,148 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     data['step'] = 'questions_count'
     await query.message.reply_text(
         f"📊 Сколько вопросов будет в тесте?\n🔹 От 3 до {MAX_QUESTIONS} вопросов\n\n✏️ Напиши число:",
+        reply_markup=get_cancel_keyboard()
+    )
+
+async def greeting_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    choice = query.data.replace("greeting_", "")
+    data = context.user_data.get('creating_test')
+    
+    if choice == "skip":
+        data['step'] = 'selecting_question'
+        data['current_question_index'] = 0
+        data['greeting_type'] = None
+        data['greeting_file_id'] = None
+        
+        await query.message.reply_text("✨ Отлично! Приступаем к вопросам!")
+        await show_question_for_selection(query, context)
+        return
+    
+    data['greeting_type'] = choice
+    data['waiting_greeting'] = True
+    
+    if choice == "voice":
+        text = "🎤 Отправь голосовое сообщение (до 15 секунд)\n\n❌ *Отмена* — чтобы пропустить"
+    else:
+        text = "🎥 Отправь видео (до 15 секунд)\n\n❌ *Отмена* — чтобы пропустить"
+    
+    await query.message.reply_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_cancel_keyboard()
+    )
+
+async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = context.user_data.get('creating_test')
+    if not data or not data.get('waiting_greeting'):
+        return
+    
+    greeting_type = data['greeting_type']
+    
+    if greeting_type == "voice":
+        if not update.message.voice:
+            await update.message.reply_text("❌ Отправь голосовое сообщение!")
+            return
+        file_id = update.message.voice.file_id
+    else:
+        if not update.message.video:
+            await update.message.reply_text("❌ Отправь видео!")
+            return
+        file_id = update.message.video.file_id
+    
+    data['greeting_file_id'] = file_id
+    data['waiting_greeting'] = False
+    data['step'] = 'selecting_question'
+    data['current_question_index'] = 0
+    
+    await update.message.reply_text(
+        "✅ Поздравление сохранено!\n\n✨ Приступаем к вопросам!",
+        reply_markup=get_main_keyboard(update.effective_user.id)
+    )
+    
+    await show_question_for_selection(update, context)
+
+async def show_question_for_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = context.user_data.get('creating_test')
+    if not data:
+        return
+    
+    questions = data.get('group_questions', [])
+    data['current_question_index'] = data.get('current_question_index', 0)
+    question_text = questions[data['current_question_index']]
+    data['current_question'] = question_text
+    
+    text = (f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
+            f"{question_text}\n\n"
+            f"👇 *Что делаем с этим вопросом?*")
+    
+    if hasattr(update, 'message'):
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
+    else:
+        await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
+
+async def next_question_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = context.user_data.get('creating_test')
+    if not data:
+        return
+    
+    questions = data.get('group_questions', [])
+    current_idx = data.get('current_question_index', 0)
+    current_idx = (current_idx + 1) % len(questions)
+    data['current_question_index'] = current_idx
+    data['current_question'] = questions[current_idx]
+    
+    text = (f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
+            f"{questions[current_idx]}\n\n"
+            f"👇 *Что делаем с этим вопросом?*")
+    
+    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
+
+async def random_question_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = context.user_data.get('creating_test')
+    if not data:
+        return
+    
+    all_questions = []
+    for g in QUESTION_GROUPS.keys():
+        all_questions.extend(QUESTIONS.get(g, []))
+    random.shuffle(all_questions)
+    data['group_questions'] = all_questions[:30]
+    data['current_question_index'] = 0
+    data['current_question'] = all_questions[0]
+    
+    text = (f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n"
+            f"{all_questions[0]}\n\n"
+            f"👇 *Что делаем с этим вопросом?*")
+    
+    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
+
+async def select_this_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    data = context.user_data.get('creating_test')
+    if not data:
+        return
+    
+    data['current_options'] = []
+    data['step'] = 'collecting_options'
+    data['waiting_for_option'] = True
+    
+    await query.message.reply_text(
+        f"📝 *Вопрос:* {data['current_question']}\n\n"
+        f"✏️ *Напиши вариант ответа №1:*\n\n"
+        f"💡 *Совет:* Варианты должны быть разными и понятными",
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_cancel_keyboard()
     )
 
@@ -662,92 +917,40 @@ async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['current_q'] += 1
     
     if data['current_q'] < data['total_q']:
-        questions = data.get('group_questions', [])
-        question_text = questions[data['current_q'] % len(questions)]
-        data['current_question'] = question_text
-        data['current_options'] = []
-        data['waiting_for_option'] = True
+        data['step'] = 'selecting_question'
+        data['current_question_index'] = (data.get('current_question_index', 0) + 1) % len(data.get('group_questions', []))
         
-        await query.message.reply_text(
-            f"✅ Вопрос {data['current_q']} сохранён!\n\n📝 Вопрос {data['current_q'] + 1}/{data['total_q']}\n\n{question_text}\n\n✏️ Напиши вариант ответа №1:",
-            reply_markup=get_cancel_keyboard()
-        )
+        await query.message.reply_text(f"✅ *Вопрос {data['current_q']} сохранён!* ✅\n\nПереходим к следующему...", parse_mode=ParseMode.MARKDOWN)
+        await show_question_for_selection(query, context)
     else:
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎤 Голосовое", callback_data="greeting_voice"),
-             InlineKeyboardButton("🎥 Видео", callback_data="greeting_video")],
-            [InlineKeyboardButton("⏭️ Пропустить", callback_data="greeting_skip")]
-        ])
-        await query.message.reply_text(
-            "🎬✨ *ДОБАВЬ ПОЗДРАВЛЕНИЕ!* ✨🎬\n\nТвоя подружка получит его после прохождения теста!\n\n👇 Выбери тип или пропусти:",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboard
-        )
-
-async def greeting_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    choice = query.data.replace("greeting_", "")
-    data = context.user_data.get('creating_test')
-    
-    if choice == "skip":
         questions = [q['text'] for q in data['questions_data']]
         options = [q['options'] for q in data['questions_data']]
         correct = [q['correct'] for q in data['questions_data']]
-        test_id = create_test(query.from_user.id, query.from_user.first_name, data['title'], questions, options, correct)
+        
+        test_id = create_test(
+            query.from_user.id,
+            query.from_user.first_name,
+            data['title'],
+            questions,
+            options,
+            correct,
+            data.get('greeting_type'),
+            data.get('greeting_file_id')
+        )
+        
         del context.user_data['creating_test']
         
+        text = (f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n"
+                f"📝 *{data['title']}*\n"
+                f"🔢 Вопросов: {len(questions)}\n\n"
+                f"💖 Отправь ссылку подружке!")
+        
         await query.message.reply_text(
-            f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n🔢 Вопросов: {len(questions)}\n\n💖 Отправь ссылку подружке!",
+            text,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_share_keyboard(test_id)
         )
         await query.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(query.from_user.id))
-        return
-    
-    data['greeting_type'] = choice
-    data['waiting_greeting'] = True
-    
-    text = "🎤 Отправь голосовое сообщение (до 15 секунд)" if choice == "voice" else "🎥 Отправь видео (до 15 секунд)"
-    await query.message.reply_text(text, reply_markup=get_cancel_keyboard())
-
-async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = context.user_data.get('creating_test')
-    if not data or not data.get('waiting_greeting'):
-        return
-    
-    greeting_type = data['greeting_type']
-    
-    if greeting_type == "voice":
-        if not update.message.voice:
-            await update.message.reply_text("❌ Отправь голосовое сообщение!")
-            return
-        file_id = update.message.voice.file_id
-    else:
-        if not update.message.video:
-            await update.message.reply_text("❌ Отправь видео!")
-            return
-        file_id = update.message.video.file_id
-    
-    questions = [q['text'] for q in data['questions_data']]
-    options = [q['options'] for q in data['questions_data']]
-    correct = [q['correct'] for q in data['questions_data']]
-    
-    test_id = create_test(
-        update.effective_user.id, update.effective_user.first_name,
-        data['title'], questions, options, correct,
-        greeting_type, file_id
-    )
-    
-    del context.user_data['creating_test']
-    
-    await update.message.reply_text(
-        f"✅ Поздравление сохранено!\n\n🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n🔢 Вопросов: {len(questions)}\n\n💖 Отправь ссылку подружке!",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_share_keyboard(test_id)
-    )
-    await update.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(update.effective_user.id))
 
 # === МОИ ТЕСТЫ ===
 async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -756,7 +959,8 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not tests:
         await update.message.reply_text(
-            "🌸 *У тебя пока нет тестов!*\n\nСоздай свой первый тест через кнопку «🌸 Создать тест» 💕",
+            "🌸 *У тебя пока нет тестов!*\n\n"
+            "Создай свой первый тест через кнопку «🌸 Создать тест» 💕",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_main_keyboard(user_id)
         )
@@ -929,9 +1133,56 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await start(update, context)
     elif text == "🔙 Назад":
-        if user_id == ADMIN_ID and context.user_data.get('admin_action'):
+        data = context.user_data.get('creating_test')
+        if data and data.get('step') == 'collecting_options':
+            data['step'] = 'selecting_question'
+            await update.message.reply_text("🔙 Возвращаемся к выбору вопроса...")
+            await show_question_for_selection(update, context)
+        elif user_id == ADMIN_ID and context.user_data.get('admin_action'):
             del context.user_data['admin_action']
-        await start(update, context)
+            await start(update, context)
+        else:
+            await start(update, context)
+    elif text == "➕ Добавить вариант":
+        data = context.user_data.get('creating_test')
+        if data and data.get('step') == 'collecting_options':
+            if len(data.get('current_options', [])) >= MAX_OPTIONS:
+                await update.message.reply_text(
+                    f"⚠️ *Максимум {MAX_OPTIONS} вариантов!* Нажми «✅ Готово»",
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_options_keyboard()
+                )
+                return
+            data['waiting_for_option'] = True
+            await update.message.reply_text(
+                f"✏️ *Напиши вариант №{len(data['current_options']) + 1}:*",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_cancel_keyboard()
+            )
+    elif text == "✅ Готово":
+        data = context.user_data.get('creating_test')
+        if data and data.get('step') == 'collecting_options':
+            options = data.get('current_options', [])
+            if len(options) < 2:
+                await update.message.reply_text(
+                    f"⚠️ *Нужно минимум 2 варианта!* Добавь ещё",
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_options_keyboard()
+                )
+                data['waiting_for_option'] = True
+                return
+            
+            keyboard = []
+            for i, opt in enumerate(options):
+                keyboard.append([InlineKeyboardButton(f"{i+1}. {opt[:30]}", callback_data=f"correct_{i}")])
+            
+            await update.message.reply_text(
+                f"❓ *Вопрос:* {data['current_question']}\n\n"
+                f"👇 *Какой вариант ПРАВИЛЬНЫЙ?* 👇",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            data['waiting_for_option'] = False
     else:
         if 'creating_test' in context.user_data:
             await handle_create_test(update, context)
@@ -944,6 +1195,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if data.startswith("group_"):
         await select_question_group(update, context)
+    elif data == "next_question":
+        await next_question_callback(update, context)
+    elif data == "random_question":
+        await random_question_callback(update, context)
+    elif data == "select_question":
+        await select_this_question(update, context)
     elif data.startswith("correct_"):
         await select_correct(update, context)
     elif data.startswith("greeting_"):
@@ -1008,7 +1265,7 @@ def main():
     app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
     app.add_handler(CallbackQueryHandler(callback_handler))
     
-    logger.info("🚀✨ Бот запущен! ЛЁГКАЯ ВЕРСИЯ + АДМИН-ПАНЕЛЬ ✨🚀")
+    logger.info("🚀✨ Бот запущен! ВСЕ ИСПРАВЛЕНИЯ ПРИМЕНЕНЫ ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
