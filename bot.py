@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-PodrugaTestBot — простой и красивый бот для тестов между подругами
-Версия: 2.0 — ЛЁГКАЯ И ПОНЯТНАЯ
+PodrugaTestBot — простой бот для тестов между подругами
+Версия: 3.0 — ЛЁГКАЯ + АДМИН-ПАНЕЛЬ
 """
 
 import logging
 import json
 import sqlite3
 import random
-import os
 import asyncio
 import hashlib
 import io
@@ -33,6 +32,7 @@ DB_NAME = 'bot_simple.db'
 FREE_TESTS_LIMIT = 3
 MAX_QUESTIONS = 5
 MAX_OPTIONS = 4
+ADMIN_ID = 710623393  # Твой ID
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -99,7 +99,6 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # Пользователи
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         username TEXT,
@@ -110,7 +109,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Тесты
     c.execute('''CREATE TABLE IF NOT EXISTS tests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         creator_id INTEGER,
@@ -119,10 +117,20 @@ def init_db():
         questions TEXT,
         options TEXT,
         correct_answers TEXT,
+        greeting_type TEXT,
+        greeting_file_id TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # Пройденные тесты
+    try:
+        c.execute('ALTER TABLE tests ADD COLUMN greeting_type TEXT')
+    except:
+        pass
+    try:
+        c.execute('ALTER TABLE tests ADD COLUMN greeting_file_id TEXT')
+    except:
+        pass
+    
     c.execute('''CREATE TABLE IF NOT EXISTS attempts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         test_id INTEGER,
@@ -202,12 +210,13 @@ def get_test_by_id(test_id):
     conn.close()
     return None
 
-def create_test(creator_id, creator_name, title, questions, options, correct_answers):
+def create_test(creator_id, creator_name, title, questions, options, correct_answers, greeting_type=None, greeting_file_id=None):
     conn = get_db()
     c = conn.cursor()
-    c.execute('''INSERT INTO tests (creator_id, creator_name, title, questions, options, correct_answers)
-                 VALUES (?, ?, ?, ?, ?, ?)''',
-              (creator_id, creator_name, title, json.dumps(questions), json.dumps(options), json.dumps(correct_answers)))
+    c.execute('''INSERT INTO tests (creator_id, creator_name, title, questions, options, correct_answers, greeting_type, greeting_file_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+              (creator_id, creator_name, title, json.dumps(questions), json.dumps(options), 
+               json.dumps(correct_answers), greeting_type, greeting_file_id))
     test_id = c.lastrowid
     c.execute('UPDATE users SET tests_created = tests_created + 1 WHERE user_id = ?', (creator_id,))
     conn.commit()
@@ -242,6 +251,23 @@ def get_test_attempts(test_id):
     conn.close()
     return attempts
 
+def give_premium(user_id, days=30):
+    conn = get_db()
+    c = conn.cursor()
+    until = (datetime.now() + timedelta(days=days)).isoformat()
+    c.execute('UPDATE users SET is_premium = 1, premium_until = ? WHERE user_id = ?', (until, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def get_all_users():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM users')
+    users = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return users
+
 # === ДИПЛОМ ===
 async def generate_diploma(user_name, test_title, score, status, is_premium_user):
     width, height = 1000, 700
@@ -266,57 +292,47 @@ async def generate_diploma(user_name, test_title, score, status, is_premium_user
     text_white = '#FFFFFF'
     text_gray = '#B0B0B0'
     
-    # Рамка
     draw.rectangle([0, 0, width, 4], fill=primary)
     draw.rectangle([0, height-4, width, height], fill=primary)
     
-    # Заголовок
     title = "💎 ПРЕМИУМ ДИПЛОМ 💎" if is_premium_user else "🌸 ДИПЛОМ ПОДРУЖКИ 🌸"
     bbox = draw.textbbox((0, 0), title, font=font_title)
     title_width = bbox[2] - bbox[0]
     draw.text((width//2 - title_width//2, 50), title, fill=primary, font=font_title)
     
-    # Иконка
     icon = "👑" if is_premium_user else "📜"
     bbox = draw.textbbox((0, 0), icon, font=font_score)
     icon_width = bbox[2] - bbox[0]
     draw.text((width//2 - icon_width//2, 120), icon, fill=primary, font=font_score)
     
-    # Имя
     name_display = user_name[:30]
     bbox = draw.textbbox((0, 0), name_display, font=font_name)
     name_width = bbox[2] - bbox[0]
     draw.text((width//2 - name_width//2, 220), name_display, fill=text_white, font=font_name)
     
-    # Тест
     test_display = test_title[:40]
     bbox = draw.textbbox((0, 0), test_display, font=font_text)
     test_width = bbox[2] - bbox[0]
     draw.text((width//2 - test_width//2, 280), test_display, fill=text_gray, font=font_text)
     
-    # Результат
     score_color = '#2EA043' if score >= 70 else '#FFA500' if score >= 50 else '#FF4444'
     score_text = f"{score:.0f}%"
     bbox = draw.textbbox((0, 0), score_text, font=font_score)
     score_width = bbox[2] - bbox[0]
     draw.text((width//2 - score_width//2, 350), score_text, fill=score_color, font=font_score)
     
-    # Статус
     bbox = draw.textbbox((0, 0), status, font=font_text)
     status_width = bbox[2] - bbox[0]
     draw.text((width//2 - status_width//2, 470), status, fill=primary, font=font_text)
     
-    # Поздравление
     congrats = "Поздравляем с прохождением теста!"
     bbox = draw.textbbox((0, 0), congrats, font=font_small)
     congrats_width = bbox[2] - bbox[0]
     draw.text((width//2 - congrats_width//2, 550), congrats, fill=text_gray, font=font_small)
     
-    # Дата
     date_text = datetime.now().strftime("%d.%m.%Y")
     draw.text((50, height-40), date_text, fill=text_gray, font=font_small)
     
-    # ID
     cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
     cert_text = f"ID: {cert_id}"
     bbox = draw.textbbox((0, 0), cert_text, font=font_small)
@@ -329,10 +345,19 @@ async def generate_diploma(user_name, test_title, score, status, is_premium_user
     return img_byte_arr
 
 # === КЛАВИАТУРЫ ===
-def get_main_keyboard():
+def get_main_keyboard(user_id=None):
     keyboard = [
         [KeyboardButton("🌸 Создать тест")],
         [KeyboardButton("👑 Мои тесты"), KeyboardButton("💎 Премиум")]
+    ]
+    if user_id == ADMIN_ID:
+        keyboard.append([KeyboardButton("🔧 Админ-панель")])
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+def get_admin_keyboard():
+    keyboard = [
+        [KeyboardButton("📊 Статистика"), KeyboardButton("🎁 Подарить премиум")],
+        [KeyboardButton("🔙 Назад")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -380,7 +405,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not get_user(user.id):
         create_user(user.id, user.username, user.first_name)
     
-    # Проверяем, перешли ли по ссылке на тест
     if context.args and context.args[0].startswith("test_"):
         test_id = int(context.args[0].split("_")[1])
         test = get_test_by_id(test_id)
@@ -410,7 +434,106 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{'💎 *Статус:* ПРЕМИУМ (безлимит) ✨' if is_prem else ''}\n\n"
             f"Выбирай действие в меню 👇")
     
-    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard())
+    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
+
+# === АДМИН-ПАНЕЛЬ ===
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        await update.message.reply_text("❌ У вас нет доступа!")
+        return
+    await update.message.reply_text("🔧 *АДМИН-ПАНЕЛЬ*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+
+async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        return
+    
+    users = get_all_users()
+    total_users = len(users)
+    premium_users = sum(1 for u in users if u.get('premium_until') and datetime.fromisoformat(u['premium_until']) > datetime.now())
+    
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM tests')
+    total_tests = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM attempts')
+    total_attempts = c.fetchone()[0]
+    c.execute('SELECT AVG(score) FROM attempts')
+    avg_score = c.fetchone()[0] or 0
+    conn.close()
+    
+    text = (f"📊 *СТАТИСТИКА БОТА*\n\n"
+            f"👥 Пользователей: *{total_users}*\n"
+            f"💎 Премиум активных: *{premium_users}*\n"
+            f"📝 Тестов создано: *{total_tests}*\n"
+            f"🎯 Пройдено тестов: *{total_attempts}*\n"
+            f"📊 Средний результат: *{avg_score:.1f}%*\n\n"
+            f"📅 {datetime.now().strftime('%d.%m.%Y')}")
+    
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+
+async def admin_give_premium_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        return
+    
+    context.user_data['admin_action'] = 'give_premium'
+    await update.message.reply_text(
+        "🎁 *ПОДАРИТЬ ПРЕМИУМ*\n\n"
+        "Введите username или ID пользователя:\n"
+        "Например: @anna или 123456789",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_cancel_keyboard()
+    )
+
+async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        return
+    
+    action = context.user_data.get('admin_action')
+    if action != 'give_premium':
+        return
+    
+    text = update.message.text.strip().lstrip('@')
+    target_user_id = None
+    
+    conn = get_db()
+    c = conn.cursor()
+    if text.isdigit():
+        c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(text),))
+    else:
+        c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (text,))
+    row = c.fetchone()
+    conn.close()
+    
+    if not row:
+        await update.message.reply_text(f"❌ Пользователь {text} не найден", reply_markup=get_admin_keyboard())
+        del context.user_data['admin_action']
+        return
+    
+    target_user_id = row['user_id']
+    target_name = row['first_name'] or text
+    
+    give_premium(target_user_id, 30)
+    
+    await update.message.reply_text(
+        f"✅ *{target_name}* получил премиум на 30 дней! 🎉",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_admin_keyboard()
+    )
+    
+    try:
+        await context.bot.send_message(
+            chat_id=target_user_id,
+            text=f"🎉✨ *ПОЗДРАВЛЯЕМ!* ✨🎉\n\n💎 Вам подарен *ПРЕМИУМ* на 30 дней!\n\n♾️ Безлимитные тесты\n🎓 Красивый диплом\n📊 Ответы подруг\n\n💖 Приятного использования!",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except:
+        pass
+    
+    del context.user_data['admin_action']
 
 # === СОЗДАНИЕ ТЕСТА ===
 async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -422,7 +545,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Ты создала {FREE_TESTS_LIMIT} теста.\n"
             f"💎 *Купи Премиум* для безлимита и красивых дипломов!",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
         return
     
@@ -441,25 +564,20 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not data:
         return
     
-    text = update.message.text
-    if text == "❌ Отмена":
-        del context.user_data['creating_test']
-        await update.message.reply_text("❌ Создание отменено", reply_markup=get_main_keyboard())
-        return
-    
+    text = update.message.text.strip()
     step = data.get('step')
     
     if step == 'title':
-        data['title'] = text.strip()
+        if len(text) < 3:
+            await update.message.reply_text("⚠️ Название должно быть длиннее 3 символов!")
+            return
+        data['title'] = text
         data['step'] = 'group'
-        await update.message.reply_text(
-            "✨ Выбери тему для вопросов:",
-            reply_markup=get_question_groups_keyboard()
-        )
+        await update.message.reply_text("✨ Выбери тему для вопросов:", reply_markup=get_question_groups_keyboard())
     
     elif step == 'questions_count':
         try:
-            count = int(text.strip())
+            count = int(text)
             if count < 3 or count > MAX_QUESTIONS:
                 await update.message.reply_text(f"⚠️ От 3 до {MAX_QUESTIONS} вопросов!")
                 return
@@ -467,9 +585,38 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             data['current_q'] = 0
             data['questions_data'] = []
             data['step'] = 'selecting_question'
-            await show_next_question(update, context)
+            
+            questions = data.get('group_questions', [])
+            question_text = questions[data['current_q']]
+            data['current_question'] = question_text
+            data['current_options'] = []
+            data['waiting_for_option'] = True
+            
+            await update.message.reply_text(
+                f"📝 Вопрос {data['current_q'] + 1}/{data['total_q']}\n\n{question_text}\n\n✏️ Напиши вариант ответа №1:",
+                reply_markup=get_cancel_keyboard()
+            )
         except ValueError:
             await update.message.reply_text("⚠️ Напиши число!")
+    
+    elif step == 'selecting_question':
+        if data.get('waiting_for_option'):
+            if len(text) > 50:
+                await update.message.reply_text("⚠️ Слишком длинный вариант! До 50 символов.")
+                return
+            data['current_options'].append(text)
+            if len(data['current_options']) < MAX_OPTIONS:
+                await update.message.reply_text(
+                    f"✅ Вариант {len(data['current_options'])} добавлен!\n✏️ Напиши вариант №{len(data['current_options']) + 1}:",
+                    reply_markup=get_cancel_keyboard()
+                )
+            else:
+                options = data['current_options']
+                keyboard = []
+                for i, opt in enumerate(options):
+                    keyboard.append([InlineKeyboardButton(f"{i+1}. {opt[:30]}", callback_data=f"correct_{i}")])
+                await update.message.reply_text("❓ Какой вариант ПРАВИЛЬНЫЙ?", reply_markup=InlineKeyboardMarkup(keyboard))
+                data['waiting_for_option'] = False
 
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -492,75 +639,8 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
     
     data['step'] = 'questions_count'
     await query.message.reply_text(
-        f"📊 Сколько вопросов будет в тесте?\n"
-        f"🔹 От 3 до {MAX_QUESTIONS} вопросов\n\n"
-        f"✏️ Напиши число:",
+        f"📊 Сколько вопросов будет в тесте?\n🔹 От 3 до {MAX_QUESTIONS} вопросов\n\n✏️ Напиши число:",
         reply_markup=get_cancel_keyboard()
-    )
-
-async def show_next_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = context.user_data.get('creating_test')
-    if not data:
-        return
-    
-    questions = data.get('group_questions', [])
-    if data['current_q'] >= len(questions):
-        data['current_q'] = 0
-    
-    question_text = questions[data['current_q']]
-    data['current_question'] = question_text
-    data['current_options'] = []
-    data['waiting_for_option'] = True
-    
-    await update.message.reply_text(
-        f"📝 Вопрос {data['current_q'] + 1}/{data['total_q']}\n\n"
-        f"{question_text}\n\n"
-        f"✏️ Напиши вариант ответа №1:",
-        reply_markup=get_cancel_keyboard()
-    )
-
-async def handle_collecting_options(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = context.user_data.get('creating_test')
-    if not data or data.get('step') != 'selecting_question':
-        return
-    
-    text = update.message.text
-    if text == "❌ Отмена":
-        del context.user_data['creating_test']
-        await update.message.reply_text("❌ Создание отменено", reply_markup=get_main_keyboard())
-        return
-    
-    if data.get('waiting_for_option'):
-        if len(text) > 50:
-            await update.message.reply_text("⚠️ Слишком длинный вариант! До 50 символов.")
-            return
-        
-        data['current_options'].append(text.strip())
-        
-        if len(data['current_options']) < MAX_OPTIONS:
-            await update.message.reply_text(
-                f"✅ Вариант {len(data['current_options'])} добавлен!\n"
-                f"✏️ Напиши вариант №{len(data['current_options']) + 1}:",
-                reply_markup=get_cancel_keyboard()
-            )
-        else:
-            await ask_for_correct_answer(update, context)
-    else:
-        await ask_for_correct_answer(update, context)
-
-async def ask_for_correct_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    data = context.user_data.get('creating_test')
-    if not data:
-        return
-    
-    options = data['current_options']
-    keyboard = []
-    for i, opt in enumerate(options):
-        keyboard.append([InlineKeyboardButton(f"{i+1}. {opt[:30]}", callback_data=f"correct_{i}")])
-    
-    await update.message.reply_text(
-        f"❓ Какой вариант ПРАВИЛЬНЫЙ?",
-        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -581,34 +661,92 @@ async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['current_q'] += 1
     
     if data['current_q'] < data['total_q']:
-        await query.message.reply_text(f"✅ Вопрос {data['current_q']} сохранён!")
-        await show_next_question(query, context)
+        questions = data.get('group_questions', [])
+        question_text = questions[data['current_q'] % len(questions)]
+        data['current_question'] = question_text
+        data['current_options'] = []
+        data['waiting_for_option'] = True
+        
+        await query.message.reply_text(
+            f"✅ Вопрос {data['current_q']} сохранён!\n\n📝 Вопрос {data['current_q'] + 1}/{data['total_q']}\n\n{question_text}\n\n✏️ Напиши вариант ответа №1:",
+            reply_markup=get_cancel_keyboard()
+        )
     else:
-        await finish_test_creation(query, context)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎤 Голосовое", callback_data="greeting_voice"),
+             InlineKeyboardButton("🎥 Видео", callback_data="greeting_video")],
+            [InlineKeyboardButton("⏭️ Пропустить", callback_data="greeting_skip")]
+        ])
+        await query.message.reply_text(
+            "🎬✨ *ДОБАВЬ ПОЗДРАВЛЕНИЕ!* ✨🎬\n\nТвоя подружка получит его после прохождения теста!\n\n👇 Выбери тип или пропусти:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard
+        )
 
-async def finish_test_creation(query, context):
+async def greeting_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    choice = query.data.replace("greeting_", "")
     data = context.user_data.get('creating_test')
-    user = query.from_user
+    
+    if choice == "skip":
+        questions = [q['text'] for q in data['questions_data']]
+        options = [q['options'] for q in data['questions_data']]
+        correct = [q['correct'] for q in data['questions_data']]
+        test_id = create_test(query.from_user.id, query.from_user.first_name, data['title'], questions, options, correct)
+        del context.user_data['creating_test']
+        
+        await query.message.reply_text(
+            f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n🔢 Вопросов: {len(questions)}\n\n💖 Отправь ссылку подружке!",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_share_keyboard(test_id)
+        )
+        await query.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(query.from_user.id))
+        return
+    
+    data['greeting_type'] = choice
+    data['waiting_greeting'] = True
+    
+    text = "🎤 Отправь голосовое сообщение (до 15 секунд)" if choice == "voice" else "🎥 Отправь видео (до 15 секунд)"
+    await query.message.reply_text(text, reply_markup=get_cancel_keyboard())
+
+async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    data = context.user_data.get('creating_test')
+    if not data or not data.get('waiting_greeting'):
+        return
+    
+    greeting_type = data['greeting_type']
+    
+    if greeting_type == "voice":
+        if not update.message.voice:
+            await update.message.reply_text("❌ Отправь голосовое сообщение!")
+            return
+        file_id = update.message.voice.file_id
+    else:
+        if not update.message.video:
+            await update.message.reply_text("❌ Отправь видео!")
+            return
+        file_id = update.message.video.file_id
     
     questions = [q['text'] for q in data['questions_data']]
     options = [q['options'] for q in data['questions_data']]
     correct = [q['correct'] for q in data['questions_data']]
     
-    test_id = create_test(user.id, user.first_name, data['title'], questions, options, correct)
+    test_id = create_test(
+        update.effective_user.id, update.effective_user.first_name,
+        data['title'], questions, options, correct,
+        greeting_type, file_id
+    )
     
     del context.user_data['creating_test']
     
-    text = (f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n"
-            f"📝 *{data['title']}*\n"
-            f"🔢 Вопросов: {data['total_q']}\n\n"
-            f"💖 Отправь ссылку подружке!")
-    
-    await query.message.reply_text(
-        text, 
-        parse_mode=ParseMode.MARKDOWN, 
+    await update.message.reply_text(
+        f"✅ Поздравление сохранено!\n\n🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n🔢 Вопросов: {len(questions)}\n\n💖 Отправь ссылку подружке!",
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_share_keyboard(test_id)
     )
-    await query.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard())
+    await update.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(update.effective_user.id))
 
 # === МОИ ТЕСТЫ ===
 async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -617,19 +755,16 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not tests:
         await update.message.reply_text(
-            "🌸 *У тебя пока нет тестов!*\n\n"
-            "Создай свой первый тест через кнопку «🌸 Создать тест» 💕",
+            "🌸 *У тебя пока нет тестов!*\n\nСоздай свой первый тест через кнопку «🌸 Создать тест» 💕",
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(user_id)
         )
         return
     
     text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
     for t in tests:
         word = decline_word(t['attempts'], "подруга", "подруги", "подруг")
-        text += f"📝 *{t['title'][:30]}*\n"
-        text += f"   👥 Прошли: {t['attempts']} {word}\n"
-        text += f"   📅 {t['created_at'][:10]}\n\n"
+        text += f"📝 *{t['title'][:30]}*\n   👥 Прошли: {t['attempts']} {word}\n   📅 {t['created_at'][:10]}\n\n"
     
     text += "👇 Выбери тест для управления:"
     
@@ -637,11 +772,7 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for t in tests[:10]:
         keyboard.append([InlineKeyboardButton(f"📝 {t['title'][:30]}", callback_data=f"mytest_{t['id']}")])
     
-    await update.message.reply_text(
-        text, 
-        parse_mode=ParseMode.MARKDOWN, 
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -662,11 +793,7 @@ async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎯 Средний результат: {avg_score:.0f}%\n\n"
             f"👇 Выбери действие:")
     
-    await query.message.reply_text(
-        text, 
-        parse_mode=ParseMode.MARKDOWN, 
-        reply_markup=get_test_actions_keyboard(test_id)
-    )
+    await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
 
 # === ПРОХОЖДЕНИЕ ТЕСТА ===
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -675,18 +802,12 @@ async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     test_id = int(query.data.replace("start_", ""))
     test = get_test_by_id(test_id)
-    user = query.from_user
     
     if not test:
         await query.message.reply_text("💔 Тест не найден")
         return
     
-    context.user_data['taking_test'] = {
-        'test': test,
-        'current': 0,
-        'answers': []
-    }
-    
+    context.user_data['taking_test'] = {'test': test, 'current': 0, 'answers': []}
     await send_question(query, context)
 
 async def send_question(query, context):
@@ -694,13 +815,10 @@ async def send_question(query, context):
     test = data['test']
     current = data['current']
     
-    q_text = test['questions'][current]
-    options = test['options'][current]
-    
-    text = f"❓ *Вопрос {current + 1}/{len(test['questions'])}*\n\n{q_text}"
+    text = f"❓ *Вопрос {current + 1}/{len(test['questions'])}*\n\n{test['questions'][current]}"
     
     keyboard = []
-    for i, opt in enumerate(options):
+    for i, opt in enumerate(test['options'][current]):
         keyboard.append([InlineKeyboardButton(opt[:40], callback_data=f"answer_{i}")])
     
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -730,30 +848,28 @@ async def finish_test(query, context):
     user = query.from_user
     
     score = sum(1 for i, a in enumerate(answers) if a == correct[i]) * 100 / len(answers)
-    
     save_attempt(test['id'], user.id, user.first_name, answers, score)
     
     status = get_friendship_status(score)
     is_prem = is_premium(test['creator_id'])
     
-    # Отправляем результат
     text = (f"🎉 *ТЕСТ ПРОЙДЕН!* 🎉\n\n"
-            f"👤 {user.first_name}\n"
-            f"📝 {test['title']}\n"
-            f"🎯 Результат: {score:.0f}%\n"
-            f"🏆 {status}")
-    
+            f"👤 {user.first_name}\n📝 {test['title']}\n🎯 Результат: {score:.0f}%\n🏆 {status}")
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
     
-    # Генерируем и отправляем диплом
-    diploma = await generate_diploma(user.first_name, test['title'], score, status, is_prem)
-    await query.message.reply_photo(
-        diploma,
-        caption=f"🎓 *ТВОЙ ДИПЛОМ!* 🎓",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    if test.get('greeting_file_id'):
+        try:
+            caption = "🎬✨ *ПОЗДРАВЛЕНИЕ ОТ ПОДРУЖКИ* ✨🎬"
+            if test.get('greeting_type') == 'voice':
+                await query.message.reply_voice(test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
+            elif test.get('greeting_type') == 'video':
+                await query.message.reply_video(test['greeting_file_id'], caption=caption, parse_mode=ParseMode.MARKDOWN)
+        except Exception as e:
+            logger.error(f"Ошибка отправки поздравления: {e}")
     
-    await query.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard())
+    diploma = await generate_diploma(user.first_name, test['title'], score, status, is_prem)
+    await query.message.reply_photo(diploma, caption="🎓 *ТВОЙ ДИПЛОМ!* 🎓", parse_mode=ParseMode.MARKDOWN)
+    await query.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(user.id))
     del context.user_data['taking_test']
 
 # === ПРЕМИУМ ===
@@ -764,48 +880,31 @@ async def premium_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_prem:
         user = get_user(user_id)
         expiry = datetime.fromisoformat(user['premium_until']).strftime('%d.%m.%Y')
-        text = (f"💎✨ *У ТЕБЯ ПРЕМИУМ!* ✨💎\n\n"
-                f"♾️ Безлимитные тесты\n"
-                f"🎓 Красивый диплом\n"
-                f"📊 Ответы подруг\n\n"
-                f"📅 Действует до: {expiry}")
+        text = f"💎✨ *У ТЕБЯ ПРЕМИУМ!* ✨💎\n\n♾️ Безлимитные тесты\n🎓 Красивый диплом\n📊 Ответы подруг\n\n📅 Действует до: {expiry}"
     else:
-        text = (f"💎 *ПРЕМИУМ ПОДПИСКА*\n\n"
-                f"✨ Что даёт:\n"
-                f"♾️ Безлимитные тесты\n"
-                f"🎓 Красивый золотой диплом\n"
-                f"📊 Смотреть ответы подруг\n\n"
-                f"💰 Стоимость:\n"
-                f"• 199₽ — месяц\n"
-                f"• 1299₽ — год\n\n"
-                f"👇 Выбери тариф:")
+        text = (f"💎 *ПРЕМИУМ ПОДПИСКА*\n\n✨ Что даёт:\n♾️ Безлимитные тесты\n🎓 Красивый золотой диплом\n📊 Смотреть ответы подруг\n\n"
+                f"💰 Стоимость:\n• 199₽ — месяц\n• 1299₽ — год\n\n👇 Выбери тариф:")
     
     await update.message.reply_text(
-        text, 
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_premium_keyboard() if not is_prem else get_main_keyboard()
+        text, parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_premium_keyboard() if not is_prem else get_main_keyboard(user_id)
     )
 
 async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
     is_month = query.data == "buy_month"
     price = "199₽" if is_month else "1299₽"
-    
     await query.message.reply_text(
-        f"💎 *ОПЛАТА ПРЕМИУМА*\n\n"
-        f"Тариф: {'месяц' if is_month else 'год'}\n"
-        f"Сумма: {price}\n\n"
-        f"Для оплаты напишите: @LavaTopBot\n"
-        f"После оплаты сообщите админу: @SergeyMarko\n\n"
-        f"💖 Спасибо за поддержку!",
+        f"💎 *ОПЛАТА ПРЕМИУМА*\n\nТариф: {'месяц' if is_month else 'год'}\nСумма: {price}\n\n"
+        f"Для оплаты напишите: @LavaTopBot\nПосле оплаты сообщите админу: @SergeyMarko\n\n💖 Спасибо за поддержку!",
         parse_mode=ParseMode.MARKDOWN
     )
 
 # === ОБРАБОТЧИКИ КНОПОК ===
 async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
+    user_id = update.effective_user.id
     
     if text == "🌸 Создать тест":
         await create_test_start(update, context)
@@ -813,11 +912,30 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await my_tests_handler(update, context)
     elif text == "💎 Премиум":
         await premium_handler(update, context)
+    elif text == "🔧 Админ-панель" and user_id == ADMIN_ID:
+        await admin_panel(update, context)
+    elif text == "📊 Статистика" and user_id == ADMIN_ID:
+        await admin_stats(update, context)
+    elif text == "🎁 Подарить премиум" and user_id == ADMIN_ID:
+        await admin_give_premium_start(update, context)
+    elif text == "❌ Отмена":
+        if 'creating_test' in context.user_data:
+            del context.user_data['creating_test']
+            await update.message.reply_text("❌ Создание отменено", reply_markup=get_main_keyboard(user_id))
+        elif context.user_data.get('admin_action'):
+            del context.user_data['admin_action']
+            await update.message.reply_text("❌ Отменено", reply_markup=get_admin_keyboard())
+        else:
+            await start(update, context)
     elif text == "🔙 Назад":
+        if user_id == ADMIN_ID and context.user_data.get('admin_action'):
+            del context.user_data['admin_action']
         await start(update, context)
     else:
         if 'creating_test' in context.user_data:
-            await handle_collecting_options(update, context)
+            await handle_create_test(update, context)
+        elif context.user_data.get('admin_action'):
+            await handle_admin_input(update, context)
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -827,6 +945,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await select_question_group(update, context)
     elif data.startswith("correct_"):
         await select_correct(update, context)
+    elif data.startswith("greeting_"):
+        await greeting_choice(update, context)
     elif data.startswith("start_"):
         await start_test(update, context)
     elif data.startswith("answer_"):
@@ -846,11 +966,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN)
     elif data.startswith("share_"):
         test_id = int(data.replace("share_", ""))
-        await query.message.reply_text(
-            "📤 *Поделись тестом с подругой!*",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_share_keyboard(test_id)
-        )
+        await query.message.reply_text("📤 *Поделись тестом с подругой!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id))
     elif data.startswith("answers_"):
         test_id = int(data.replace("answers_", ""))
         user_id = query.from_user.id
@@ -868,7 +984,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("delete_"):
         test_id = int(data.replace("delete_", ""))
         delete_test(query.from_user.id, test_id)
-        await query.message.reply_text("🗑 Тест удалён!", reply_markup=get_main_keyboard())
+        await query.message.reply_text("🗑 Тест удалён!", reply_markup=get_main_keyboard(query.from_user.id))
     elif data in ["buy_month", "buy_year"]:
         await buy_premium(update, context)
     
@@ -882,11 +998,16 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^🌸 Создать тест$"), create_test_start))
     app.add_handler(MessageHandler(filters.Regex("^👑 Мои тесты$"), my_tests_handler))
     app.add_handler(MessageHandler(filters.Regex("^💎 Премиум$"), premium_handler))
+    app.add_handler(MessageHandler(filters.Regex("^🔧 Админ-панель$"), admin_panel))
+    app.add_handler(MessageHandler(filters.Regex("^📊 Статистика$"), admin_stats))
+    app.add_handler(MessageHandler(filters.Regex("^🎁 Подарить премиум$"), admin_give_premium_start))
     app.add_handler(MessageHandler(filters.Regex("^🔙 Назад$"), start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
+    app.add_handler(MessageHandler(filters.VOICE, save_greeting))
+    app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
     app.add_handler(CallbackQueryHandler(callback_handler))
     
-    logger.info("🚀✨ Бот запущен! ЛЁГКАЯ ВЕРСИЯ ✨🚀")
+    logger.info("🚀✨ Бот запущен! ЛЁГКАЯ ВЕРСИЯ + АДМИН-ПАНЕЛЬ ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
