@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 5.1 — ФИНАЛЬНАЯ ВЕРСИЯ
+Версия: 6.0 — АНАЛИЗ ДРУЖБЫ
 """
 
 import logging
@@ -47,6 +47,16 @@ def decline_word(number, word1, word2, word3):
     if 2 <= number % 10 <= 4:
         return word2
     return word3
+
+def decline_friend_word(number):
+    """Склоняет слово 'подруга'"""
+    if 11 <= number % 100 <= 19:
+        return "подруг"
+    if number % 10 == 1:
+        return "подруга"
+    if 2 <= number % 10 <= 4:
+        return "подруги"
+    return "подруг"
 
 # === ТЕМЫ ВОПРОСОВ ===
 QUESTION_GROUPS = {
@@ -463,7 +473,7 @@ def get_all_users():
     conn.close()
     return users
 
-# === ДИПЛОМ ===
+# === ДИПЛОМ (больше не используется, но оставлен для совместимости) ===
 async def generate_diploma(user_name, test_title, score, status, is_premium_user):
     width, height = 1000, 700
     bg_color = '#0D1117' if is_premium_user else '#1A1A2E'
@@ -997,6 +1007,9 @@ async def add_photo_to_question(update: Update, context: ContextTypes.DEFAULT_TY
     data = context.user_data.get('creating_test')
     if not data:
         return
+    if not data.get('current_question'):
+        await query.message.reply_text("❌ Сначала выбери вопрос!")
+        return
     data['waiting_photo'] = True
     await query.message.reply_text(
         "📸 *Отправь фото для этого вопроса*\n\n❌ *Отмена* — чтобы пропустить",
@@ -1011,10 +1024,20 @@ async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Отправь фото!")
         return
     photo_file_id = update.message.photo[-1].file_id
+    if 'photos' not in data:
+        data['photos'] = {}
     data['photos'][str(data['current_q'])] = photo_file_id
     data['waiting_photo'] = False
-    await update.message.reply_text("✅ *Фото добавлено!*\n\nПродолжай создавать варианты ответов.", parse_mode=ParseMode.MARKDOWN)
-    await show_question_for_selection(update, context)
+    data['step'] = 'collecting_options'
+    data['current_options'] = []
+    data['waiting_for_option'] = True
+    await update.message.reply_text(
+        "✅ *Фото добавлено!*\n\n"
+        f"📝 *Вопрос:* {data['current_question']}\n\n"
+        f"✏️ *Напиши вариант ответа №1:*\n\n"
+        f"💡 *Совет:* Варианты должны быть разными и понятными",
+        parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard()
+    )
 
 async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1070,6 +1093,7 @@ async def continue_after_comment(update_or_query, context, correct_idx):
         data['current_question_index'] = (data.get('current_question_index', 0) + 1) % len(data.get('group_questions', []))
         data['current_options'] = []
         data['waiting_for_option'] = False
+        data['waiting_comment'] = False
         
         if hasattr(update_or_query, 'message'):
             await update_or_query.message.reply_text(
@@ -1118,7 +1142,7 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 *Хранятся последние 10 тестов*\n\n"
     for i, t in enumerate(tests, 1):
-        word = decline_word(t['attempts'], "подруга", "подруги", "подруг")
+        word = decline_friend_word(t['attempts'])
         text += f"{i}. 📝 *{t['title'][:30]}*\n   👥 Прошли: {t['attempts']} {word}\n   📅 {t['created_at'][:10]}\n\n"
     
     if len(tests) == 10:
@@ -1141,7 +1165,7 @@ async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     attempts = get_test_attempts(test_id)
     avg_score = sum(a['score'] for a in attempts) / len(attempts) if attempts else 0
-    text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)} подруг\n🎯 Средний результат: {avg_score:.0f}%\n\n👇 Выбери действие:"
+    text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)} {decline_friend_word(len(attempts))}\n🎯 Средний результат: {avg_score:.0f}%\n\n👇 Выбери действие:"
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
 
 # === ПРОХОЖДЕНИЕ ТЕСТА ===
@@ -1215,51 +1239,104 @@ async def finish_test(query, context):
     score = sum(1 for i in range(min_len) if answers[i] == correct[i]) * 100 / len(correct) if correct else 0
     save_attempt(test['id'], user.id, user.first_name, answers, score)
     status = get_friendship_status(score)
-    is_prem = is_premium(test['creator_id'])
+    prediction = get_friendship_prediction(score, user.first_name)
     
     try:
         creator_id = test['creator_id']
-        notification_text = f"🎉💖 *УРА! ТВОЙ ТЕСТ ПРОШЛИ!* 💖🎉\n\n👤 *{user.first_name}* только что прошла твой тест\n📝 «{test['title']}»\n🎯 *Результат:* {score:.0f}%\n🏆 *Статус:* {status}\n\n✨ *Зайди в «👑 Мои тесты» чтобы посмотреть ответы!* ✨"
+        notification_text = (
+            f"🎉💖 *УРА! ТВОЙ ТЕСТ ПРОШЛИ!* 💖🎉\n\n"
+            f"👤 *{user.first_name}* только что прошла твой тест\n"
+            f"📝 «{test['title']}»\n"
+            f"🎯 *Результат:* {score:.0f}%\n"
+            f"🏆 *Статус:* {status}\n\n"
+            f"✨ *Зайди в «👑 Мои тесты» чтобы посмотреть ответы!* ✨"
+        )
         await context.bot.send_message(chat_id=creator_id, text=notification_text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logger.error(f"Ошибка отправки уведомления: {e}")
     
-    result_text = f"🎉✨ *ТЕСТ ПРОЙДЕН!* ✨🎉\n\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n┃  👤 *{user.first_name}*\n┃  📝 *{test['title']}*\n┃  🎯 *Результат: {score:.0f}%*\n┃  🏆 *{status}*\n┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n✨ *Потрясающе! Ты просто супер!* ✨"
+    # Анализ по категориям
+    categories_stats = {}
+    for i, q in enumerate(test['questions']):
+        category = None
+        for cat, cat_questions in QUESTIONS.items():
+            if q in cat_questions:
+                category = QUESTION_GROUPS.get(cat, cat)
+                break
+        if not category:
+            category = "❓ Другое"
+        
+        if category not in categories_stats:
+            categories_stats[category] = {'correct': 0, 'total': 0}
+        
+        categories_stats[category]['total'] += 1
+        if i < len(answers) and answers[i] == correct[i]:
+            categories_stats[category]['correct'] += 1
+    
+    result_text = (
+        f"╔═══════════════════════════════════╗\n"
+        f"║       📊 *АНАЛИЗ ДРУЖБЫ* 📊       ║\n"
+        f"╠═══════════════════════════════════╣\n"
+        f"║                                   ║\n"
+        f"║  👤 *{user.first_name}* знает *{test['creator_name']}* на:\n"
+        f"║                                   ║\n"
+        f"║     🎯 *ОБЩИЙ РЕЗУЛЬТАТ: {score:.0f}%*\n"
+        f"║                                   ║\n"
+    )
+    
+    if categories_stats:
+        result_text += f"║  📋 *ПО КАТЕГОРИЯМ:*\n"
+        for cat, stats in list(categories_stats.items())[:5]:
+            cat_score = stats['correct'] * 100 / stats['total'] if stats['total'] > 0 else 0
+            bar_length = 8
+            filled = int(cat_score / 100 * bar_length)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            result_text += f"║  {cat}: {bar} {cat_score:.0f}%\n"
+    
+    result_text += (
+        f"║                                   ║\n"
+        f"║  🏆 *ВЕРДИКТ:*\n"
+        f"║  {status}\n"
+        f"║                                   ║\n"
+        f"║  🔮 *ПРЕДСКАЗАНИЕ:*\n"
+        f"║  _{prediction}_\n"
+        f"║                                   ║\n"
+        f"╚═══════════════════════════════════╝\n\n"
+        f"✨ *Потрясающе! Ты просто супер!* ✨"
+    )
+    
     await query.message.reply_text(result_text, parse_mode=ParseMode.MARKDOWN)
     await asyncio.sleep(0.5)
     
+    final_text = (
+        f"🔥 *ПОДЕЛИСЬ РЕЗУЛЬТАТОМ С {test['creator_name'].upper()}!* 🔥\n\n"
+        f"💕 *Отправь ей этот анализ и узнай, что она ответит!* 💕"
+    )
+    await query.message.reply_text(final_text, parse_mode=ParseMode.MARKDOWN)
+    
     if test.get('greeting_file_id'):
+        await asyncio.sleep(0.5)
         try:
             if test.get('greeting_type') == 'voice':
                 await query.message.reply_voice(
                     test['greeting_file_id'],
-                    caption=f"🎬✨ *А ЭТО... СЮРПРИЗ ОТ ПОДРУЖКИ!* ✨🎬\n💕 *{test['creator_name']}* приготовила для тебя особенное послание...\n👇 *Смотри внимательно!* 👇",
+                    caption=f"🎬✨ *СЮРПРИЗ ОТ {test['creator_name'].upper()}!* ✨🎬\n💕 *Она приготовила для тебя особенное послание...*",
                     parse_mode=ParseMode.MARKDOWN
                 )
             elif test.get('greeting_type') == 'video':
                 await query.message.reply_video(
                     test['greeting_file_id'],
-                    caption=f"🎬✨ *А ЭТО... СЮРПРИЗ ОТ ПОДРУЖКИ!* ✨🎬\n💕 *{test['creator_name']}* приготовила для тебя особенное послание...\n👇 *Смотри внимательно!* 👇",
+                    caption=f"🎬✨ *СЮРПРИЗ ОТ {test['creator_name'].upper()}!* ✨🎬\n💕 *Она приготовила для тебя особенное послание...*",
                     parse_mode=ParseMode.MARKDOWN
                 )
-            await asyncio.sleep(0.5)
         except Exception as e:
             logger.error(f"Ошибка отправки поздравления: {e}")
     
-    diploma = await generate_diploma(user.first_name, test['title'], score, status, is_prem)
-    
-    diploma_caption = (
-        f"🎓✨ *ВОТ ОН — ТВОЙ ДИПЛОМ!* ✨🎓\n\n"
-        f"💕 *{user.first_name}*, ты доказала, что дружба — это сила!\n"
-        f"🌟 *Храни этот диплом как память о вашей дружбе!* 🌟\n\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌈✨ *СПАСИБО ЗА ПРОХОЖДЕНИЕ!* ✨🌈\n\n"
-        f"💖 *Ты молодец! Продолжай узнавать подруг и радовать их!*\n"
-        f"🌸 *Возвращайся снова!* 🌸"
+    await query.message.reply_text(
+        "🌸 *Главное меню:*", 
+        parse_mode=ParseMode.MARKDOWN, 
+        reply_markup=get_main_keyboard(user.id)
     )
-    
-    await query.message.reply_photo(diploma, caption=diploma_caption, parse_mode=ParseMode.MARKDOWN)
-    await query.message.reply_text("🌸 *Главное меню:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
     
     del context.user_data['taking_test']
 
@@ -1329,7 +1406,7 @@ async def friendship_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     max_score = max(a['score'] for a in attempts)
     min_score = min(a['score'] for a in attempts)
     
-    text += f"━━━━━━━━━━━━━━━━\n📊 *ОБЩАЯ СТАТИСТИКА:*\n👥 Прошли: *{len(attempts)}* подруг\n📈 Средний результат: *{avg_score:.0f}%*\n🏆 Лучший: *{max_score:.0f}%*\n💔 Худший: *{min_score:.0f}%*\n\n"
+    text += f"━━━━━━━━━━━━━━━━\n📊 *ОБЩАЯ СТАТИСТИКА:*\n👥 Прошли: *{len(attempts)}* {decline_friend_word(len(attempts))}\n📈 Средний результат: *{avg_score:.0f}%*\n🏆 Лучший: *{max_score:.0f}%*\n💔 Худший: *{min_score:.0f}%*\n\n"
     if avg_score >= 70: text += f"💕 *Тебя отлично знают! Ты душа компании!*"
     elif avg_score >= 50: text += f"🌸 *Тебя хорошо знают! Продолжай в том же духе!*"
     else: text += f"🌱 *Подруги узнают тебя всё лучше! Расскажи о себе больше!*"
@@ -1534,7 +1611,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if test:
             attempts = get_test_attempts(test_id)
             avg_score = sum(a['score'] for a in attempts) / len(attempts) if attempts else 0
-            text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)} подруг\n🎯 Средний результат: {avg_score:.0f}%\n\n👇 Выбери действие:"
+            text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)} {decline_friend_word(len(attempts))}\n🎯 Средний результат: {avg_score:.0f}%\n\n👇 Выбери действие:"
             await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
     elif data.startswith("share_"):
         test_id = int(data.replace("share_", ""))
@@ -1568,7 +1645,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not attempts:
             await query.message.reply_text("👻 *Пока никто не прошёл тест*", parse_mode=ParseMode.MARKDOWN)
             return
-        text = f"📊 *ОТВЕТЫ ПОДРУГ*\n\n📝 *{test['title']}*\n\n👥 *Прошли тест:* {len(attempts)} подруг\n\n👇 *Выбери подругу, чтобы посмотреть её ответы:*"
+        text = f"📊 *ОТВЕТЫ ПОДРУГ*\n\n📝 *{test['title']}*\n\n👥 *Прошли тест:* {len(attempts)} {decline_friend_word(len(attempts))}\n\n👇 *Выбери подругу, чтобы посмотреть её ответы:*"
         keyboard = []
         for a in attempts[:10]:
             name = a['friend_name'][:20]
@@ -1662,7 +1739,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, save_comment), group=1)
     app.add_handler(CallbackQueryHandler(callback_handler))
     
-    logger.info("🚀✨ Бот запущен! ФИНАЛЬНАЯ ВЕРСИЯ ✨🚀")
+    logger.info("🚀✨ Бот запущен! АНАЛИЗ ДРУЖБЫ ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
