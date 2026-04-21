@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 6.0 — АНАЛИЗ ДРУЖБЫ
+Версия: 6.1 — ДИПЛОМ-АНАЛИЗ + АДМИН-ТЕСТЫ
 """
 
 import logging
@@ -465,6 +465,20 @@ def give_premium(user_id, days=30):
     conn.close()
     return True
 
+def add_tests_to_user(user_id, count):
+    """Начисляет тесты пользователю (уменьшает счётчик созданных)"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT tests_created FROM users WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+    if row:
+        current = row['tests_created']
+        new_value = max(0, current - count)
+        c.execute('UPDATE users SET tests_created = ? WHERE user_id = ?', (new_value, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
 def get_all_users():
     conn = get_db()
     c = conn.cursor()
@@ -473,76 +487,156 @@ def get_all_users():
     conn.close()
     return users
 
-# === ДИПЛОМ (больше не используется, но оставлен для совместимости) ===
-async def generate_diploma(user_name, test_title, score, status, is_premium_user):
-    width, height = 1000, 700
-    bg_color = '#0D1117' if is_premium_user else '#1A1A2E'
+# === ДИПЛОМ-АНАЛИЗ ===
+async def generate_friendship_analysis(user_name, creator_name, test_title, score, status, prediction, categories_stats):
+    """Создаёт красивый диплом с анализом дружбы"""
+    width, height = 1100, 900
+    bg_color = '#0D1117'
     image = Image.new('RGB', (width, height), bg_color)
     draw = ImageDraw.Draw(image)
     
     try:
-        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-        font_name = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
-        font_score = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 100)
-        font_text = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+        font_heading = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
+        font_text = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 24)
+        font_score = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
         font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 20)
+        font_prediction = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
     except:
         font_title = ImageFont.load_default()
-        font_name = ImageFont.load_default()
-        font_score = ImageFont.load_default()
+        font_heading = ImageFont.load_default()
         font_text = ImageFont.load_default()
+        font_score = ImageFont.load_default()
         font_small = ImageFont.load_default()
+        font_prediction = ImageFont.load_default()
     
-    primary = '#FFD700' if is_premium_user else '#E31B6D'
+    primary = '#E31B6D'
+    secondary = '#1E90FF'
+    gold = '#FFD700'
     text_white = '#FFFFFF'
     text_gray = '#B0B0B0'
+    text_light = '#E0E0E0'
     
-    draw.rectangle([0, 0, width, 4], fill=primary)
-    draw.rectangle([0, height-4, width, height], fill=primary)
+    for y in range(height):
+        ratio = y / height
+        r = int(13 + (26 - 13) * ratio)
+        g = int(17 + (35 - 17) * ratio)
+        b = int(23 + (46 - 23) * ratio)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
     
-    title = "💎 ПРЕМИУМ ДИПЛОМ 💎" if is_premium_user else "🌸 ДИПЛОМ ПОДРУЖКИ 🌸"
+    draw.ellipse([width-250, -100, width+100, 250], fill=primary+'15', outline=primary+'30', width=2)
+    draw.ellipse([-150, height-250, 100, height+100], fill=secondary+'15', outline=secondary+'30', width=2)
+    
+    draw.rectangle([15, 15, width-15, height-15], outline=primary, width=3)
+    draw.rectangle([22, 22, width-22, height-22], outline=secondary, width=1)
+    
+    title = "📊 АНАЛИЗ ДРУЖБЫ 📊"
     bbox = draw.textbbox((0, 0), title, font=font_title)
     title_width = bbox[2] - bbox[0]
-    draw.text((width//2 - title_width//2, 50), title, fill=primary, font=font_title)
+    draw.text((width//2 - title_width//2, 40), title, fill=primary, font=font_title)
     
-    icon = "👑" if is_premium_user else "📜"
-    bbox = draw.textbbox((0, 0), icon, font=font_score)
-    icon_width = bbox[2] - bbox[0]
-    draw.text((width//2 - icon_width//2, 120), icon, fill=primary, font=font_score)
+    draw.rectangle([width//4, 90, width*3//4, 92], fill=primary)
     
-    name_display = user_name[:30]
-    bbox = draw.textbbox((0, 0), name_display, font=font_name)
-    name_width = bbox[2] - bbox[0]
-    draw.text((width//2 - name_width//2, 220), name_display, fill=text_white, font=font_name)
+    y = 120
+    text1 = f"👤 {user_name} знает {creator_name} на:"
+    bbox = draw.textbbox((0, 0), text1, font=font_heading)
+    text1_width = bbox[2] - bbox[0]
+    draw.text((width//2 - text1_width//2, y), text1, fill=text_white, font=font_heading)
     
-    test_display = test_title[:40]
-    bbox = draw.textbbox((0, 0), test_display, font=font_text)
-    test_width = bbox[2] - bbox[0]
-    draw.text((width//2 - test_width//2, 280), test_display, fill=text_gray, font=font_text)
-    
-    score_color = '#2EA043' if score >= 70 else '#FFA500' if score >= 50 else '#FF4444'
+    y = 180
     score_text = f"{score:.0f}%"
     bbox = draw.textbbox((0, 0), score_text, font=font_score)
     score_width = bbox[2] - bbox[0]
-    draw.text((width//2 - score_width//2, 350), score_text, fill=score_color, font=font_score)
     
-    bbox = draw.textbbox((0, 0), status, font=font_text)
-    status_width = bbox[2] - bbox[0]
-    draw.text((width//2 - status_width//2, 470), status, fill=primary, font=font_text)
+    if score >= 70:
+        score_color = '#2EA043'
+    elif score >= 50:
+        score_color = '#FFA500'
+    else:
+        score_color = '#FF4444'
     
-    congrats = "Поздравляем с прохождением теста!"
-    bbox = draw.textbbox((0, 0), congrats, font=font_small)
-    congrats_width = bbox[2] - bbox[0]
-    draw.text((width//2 - congrats_width//2, 550), congrats, fill=text_gray, font=font_small)
+    draw.text((width//2 - score_width//2 + 3, y + 3), score_text, fill='#00000050', font=font_score)
+    draw.text((width//2 - score_width//2, y), score_text, fill=score_color, font=font_score)
     
+    y = 260
+    subtitle = "🎯 ОБЩИЙ РЕЗУЛЬТАТ"
+    bbox = draw.textbbox((0, 0), subtitle, font=font_small)
+    sub_width = bbox[2] - bbox[0]
+    draw.text((width//2 - sub_width//2, y), subtitle, fill=text_gray, font=font_small)
+    
+    y = 300
+    draw.rectangle([width//4, y, width*3//4, y+1], fill=text_gray+'40')
+    
+    y = 330
+    draw.text((60, y), "📋 ПО КАТЕГОРИЯМ:", fill=text_light, font=font_heading)
+    
+    y += 50
+    if categories_stats:
+        for cat, stats in list(categories_stats.items())[:4]:
+            cat_score = stats['correct'] * 100 / stats['total'] if stats['total'] > 0 else 0
+            
+            draw.text((80, y), cat, fill=text_gray, font=font_text)
+            
+            bar_width = 400
+            bar_x = 350
+            bar_y = y + 5
+            
+            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_width, bar_y+20], radius=10, fill='#1A1A2E', outline=text_gray+'40', width=1)
+            
+            fill_width = int(bar_width * cat_score / 100)
+            if fill_width > 0:
+                bar_color = '#2EA043' if cat_score >= 70 else '#FFA500' if cat_score >= 50 else '#FF4444'
+                draw.rounded_rectangle([bar_x, bar_y, bar_x+fill_width, bar_y+20], radius=10, fill=bar_color)
+            
+            percent_text = f"{cat_score:.0f}%"
+            bbox = draw.textbbox((0, 0), percent_text, font=font_text)
+            draw.text((bar_x + bar_width + 15, y-2), percent_text, fill=text_white, font=font_text)
+            
+            y += 50
+    
+    y += 10
+    draw.rectangle([width//4, y, width*3//4, y+1], fill=text_gray+'40')
+    
+    y += 30
+    draw.text((60, y), "🏆 ВЕРДИКТ:", fill=text_light, font=font_heading)
+    y += 40
+    draw.text((80, y), status, fill=gold, font=font_text)
+    
+    y += 60
+    draw.text((60, y), "🔮 ПРЕДСКАЗАНИЕ:", fill=text_light, font=font_heading)
+    y += 40
+    
+    words = prediction.split()
+    lines = []
+    current_line = []
+    for word in words:
+        current_line.append(word)
+        test_line = ' '.join(current_line)
+        bbox = draw.textbbox((0, 0), test_line, font=font_prediction)
+        if bbox[2] - bbox[0] > width - 160:
+            current_line.pop()
+            lines.append(' '.join(current_line))
+            current_line = [word]
+    if current_line:
+        lines.append(' '.join(current_line))
+    
+    for line in lines:
+        draw.text((80, y), line, fill=text_gray, font=font_prediction)
+        y += 30
+    
+    footer_y = height - 60
     date_text = datetime.now().strftime("%d.%m.%Y")
-    draw.text((50, height-40), date_text, fill=text_gray, font=font_small)
+    draw.text((40, footer_y), date_text, fill=text_gray, font=font_small)
     
     cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
     cert_text = f"ID: {cert_id}"
     bbox = draw.textbbox((0, 0), cert_text, font=font_small)
     cert_width = bbox[2] - bbox[0]
-    draw.text((width-50-cert_width, height-40), cert_text, fill=text_gray, font=font_small)
+    draw.text((width-40-cert_width, footer_y), cert_text, fill=text_gray, font=font_small)
+    
+    dots = [(25, 25), (width-25, 25), (25, height-25), (width-25, height-25)]
+    for x, y_pos in dots:
+        draw.ellipse([x-3, y_pos-3, x+3, y_pos+3], fill=primary)
     
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format='PNG', quality=95)
@@ -562,6 +656,7 @@ def get_main_keyboard(user_id=None):
 def get_admin_keyboard():
     keyboard = [
         [KeyboardButton("📊 Статистика"), KeyboardButton("🎁 Подарить премиум")],
+        [KeyboardButton("➕ Начислить тесты"), KeyboardButton("⭐ Начислить очки")],
         [KeyboardButton("🔙 Назад")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -738,33 +833,123 @@ async def admin_give_premium_start(update: Update, context: ContextTypes.DEFAULT
         reply_markup=get_cancel_keyboard()
     )
 
+async def admin_add_tests_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id != ADMIN_ID:
+        return
+    
+    context.user_data['admin_action'] = 'add_tests'
+    await update.message.reply_text(
+        "➕ *НАЧИСЛИТЬ ТЕСТЫ*\n\n"
+        "Введите username или ID пользователя и количество тестов:\n"
+        "Например: @anna 5 или 123456789 3\n\n"
+        "❌ *Отмена* — чтобы выйти",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_cancel_keyboard()
+    )
+
 async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
         return
+    
     action = context.user_data.get('admin_action')
-    if action != 'give_premium':
+    if not action:
         return
-    text = update.message.text.strip().lstrip('@')
-    conn = get_db()
-    c = conn.cursor()
-    if text.isdigit():
-        c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(text),))
-    else:
-        c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (text,))
-    row = c.fetchone()
-    conn.close()
-    if not row:
-        await update.message.reply_text(f"❌ Пользователь {text} не найден", reply_markup=get_admin_keyboard())
+    
+    text = update.message.text.strip()
+    
+    if action == 'give_premium':
+        target = text.lstrip('@')
+        conn = get_db()
+        c = conn.cursor()
+        if target.isdigit():
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
+        else:
+            c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
+        row = c.fetchone()
+        conn.close()
+        
+        if not row:
+            await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
+            del context.user_data['admin_action']
+            return
+        
+        give_premium(row['user_id'], 30)
+        await update.message.reply_text(
+            f"✅ *{row['first_name'] or target}* получил премиум на 30 дней! 🎉",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_admin_keyboard()
+        )
+        try:
+            await context.bot.send_message(
+                chat_id=row['user_id'],
+                text=f"🎉✨ *ПОЗДРАВЛЯЕМ!* ✨🎉\n\n💎 Вам подарен *ПРЕМИУМ* на 30 дней!\n\n♾️ Безлимитные тесты\n🎓 Красивый диплом\n📊 Ответы подруг\n\n💖 Приятного использования!",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except:
+            pass
         del context.user_data['admin_action']
-        return
-    give_premium(row['user_id'], 30)
-    await update.message.reply_text(f"✅ *{row['first_name'] or text}* получил премиум на 30 дней! 🎉", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
-    try:
-        await context.bot.send_message(chat_id=row['user_id'], text=f"🎉✨ *ПОЗДРАВЛЯЕМ!* ✨🎉\n\n💎 Вам подарен *ПРЕМИУМ* на 30 дней!", parse_mode=ParseMode.MARKDOWN)
-    except:
-        pass
-    del context.user_data['admin_action']
+    
+    elif action == 'add_tests':
+        parts = text.split()
+        if len(parts) < 2:
+            await update.message.reply_text("❌ Введите username и количество тестов!\nНапример: @anna 5", reply_markup=get_admin_keyboard())
+            return
+        
+        target = parts[0].lstrip('@')
+        try:
+            count = int(parts[1])
+        except:
+            await update.message.reply_text("❌ Количество должно быть числом!", reply_markup=get_admin_keyboard())
+            return
+        
+        conn = get_db()
+        c = conn.cursor()
+        if target.isdigit():
+            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE user_id = ?', (int(target),))
+        else:
+            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE username = ?', (target,))
+        row = c.fetchone()
+        
+        if not row:
+            conn.close()
+            await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
+            del context.user_data['admin_action']
+            return
+        
+        target_user_id = row['user_id']
+        target_name = row['first_name'] or target
+        current_created = row['tests_created']
+        
+        add_tests_to_user(target_user_id, count)
+        
+        if is_premium(target_user_id):
+            available = "♾️ (премиум)"
+        else:
+            new_created = max(0, current_created - count)
+            remaining = FREE_TESTS_LIMIT - new_created
+            word = decline_word(remaining, "тест", "теста", "тестов")
+            available = f"{remaining} {word}"
+        
+        await update.message.reply_text(
+            f"✅ *{target_name}* начислено *{count}* тестов!\n\n"
+            f"📊 Теперь доступно: *{available}*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_admin_keyboard()
+        )
+        
+        try:
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text=f"🎁 *ПОДАРОК!* 🎁\n\nВам начислено *+{count}* тестов!\n\n✨ Создавай новые тесты и делись с подругами!",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except:
+            pass
+        
+        conn.close()
+        del context.user_data['admin_action']
 
 # === СОЗДАНИЕ ТЕСТА ===
 async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1111,7 +1296,16 @@ async def continue_after_comment(update_or_query, context, correct_idx):
         options = [q['options'] for q in data['questions_data']]
         correct = [q['correct'] for q in data['questions_data']]
         
-        user = update_or_query.from_user if hasattr(update_or_query, 'from_user') else update_or_query.callback_query.from_user
+        if hasattr(update_or_query, 'from_user'):
+            user = update_or_query.from_user
+        elif hasattr(update_or_query, 'callback_query') and update_or_query.callback_query:
+            user = update_or_query.callback_query.from_user
+        else:
+            user = update_or_query.effective_user if hasattr(update_or_query, 'effective_user') else None
+        
+        if not user:
+            logger.error("Не удалось определить пользователя в continue_after_comment")
+            return
         
         test_id = create_test(
             user.id, user.first_name, data['title'],
@@ -1255,7 +1449,6 @@ async def finish_test(query, context):
     except Exception as e:
         logger.error(f"Ошибка отправки уведомления: {e}")
     
-    # Анализ по категориям
     categories_stats = {}
     for i, q in enumerate(test['questions']):
         category = None
@@ -1273,46 +1466,27 @@ async def finish_test(query, context):
         if i < len(answers) and answers[i] == correct[i]:
             categories_stats[category]['correct'] += 1
     
-    result_text = (
-        f"╔═══════════════════════════════════╗\n"
-        f"║       📊 *АНАЛИЗ ДРУЖБЫ* 📊       ║\n"
-        f"╠═══════════════════════════════════╣\n"
-        f"║                                   ║\n"
-        f"║  👤 *{user.first_name}* знает *{test['creator_name']}* на:\n"
-        f"║                                   ║\n"
-        f"║     🎯 *ОБЩИЙ РЕЗУЛЬТАТ: {score:.0f}%*\n"
-        f"║                                   ║\n"
+    analysis_image = await generate_friendship_analysis(
+        user.first_name,
+        test['creator_name'],
+        test['title'],
+        score,
+        status,
+        prediction,
+        categories_stats
     )
     
-    if categories_stats:
-        result_text += f"║  📋 *ПО КАТЕГОРИЯМ:*\n"
-        for cat, stats in list(categories_stats.items())[:5]:
-            cat_score = stats['correct'] * 100 / stats['total'] if stats['total'] > 0 else 0
-            bar_length = 8
-            filled = int(cat_score / 100 * bar_length)
-            bar = "█" * filled + "░" * (bar_length - filled)
-            result_text += f"║  {cat}: {bar} {cat_score:.0f}%\n"
-    
-    result_text += (
-        f"║                                   ║\n"
-        f"║  🏆 *ВЕРДИКТ:*\n"
-        f"║  {status}\n"
-        f"║                                   ║\n"
-        f"║  🔮 *ПРЕДСКАЗАНИЕ:*\n"
-        f"║  _{prediction}_\n"
-        f"║                                   ║\n"
-        f"╚═══════════════════════════════════╝\n\n"
-        f"✨ *Потрясающе! Ты просто супер!* ✨"
+    caption = (
+        f"🎉✨ *ТЕСТ ПРОЙДЕН!* ✨🎉\n\n"
+        f"💕 *{user.first_name}*, ты просто супер!\n"
+        f"🔥 *Поделись этим анализом с {test['creator_name']}!* 🔥"
     )
     
-    await query.message.reply_text(result_text, parse_mode=ParseMode.MARKDOWN)
-    await asyncio.sleep(0.5)
-    
-    final_text = (
-        f"🔥 *ПОДЕЛИСЬ РЕЗУЛЬТАТОМ С {test['creator_name'].upper()}!* 🔥\n\n"
-        f"💕 *Отправь ей этот анализ и узнай, что она ответит!* 💕"
+    await query.message.reply_photo(
+        analysis_image,
+        caption=caption,
+        parse_mode=ParseMode.MARKDOWN
     )
-    await query.message.reply_text(final_text, parse_mode=ParseMode.MARKDOWN)
     
     if test.get('greeting_file_id'):
         await asyncio.sleep(0.5)
@@ -1488,6 +1662,8 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await admin_stats(update, context)
     elif text == "🎁 Подарить премиум" and user_id == ADMIN_ID:
         await admin_give_premium_start(update, context)
+    elif text == "➕ Начислить тесты" and user_id == ADMIN_ID:
+        await admin_add_tests_start(update, context)
     elif text == "❌ Отмена":
         if 'creating_test' in context.user_data:
             del context.user_data['creating_test']
@@ -1731,6 +1907,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex("^🔧 Админ-панель$"), admin_panel))
     app.add_handler(MessageHandler(filters.Regex("^📊 Статистика$"), admin_stats))
     app.add_handler(MessageHandler(filters.Regex("^🎁 Подарить премиум$"), admin_give_premium_start))
+    app.add_handler(MessageHandler(filters.Regex("^➕ Начислить тесты$"), admin_add_tests_start))
     app.add_handler(MessageHandler(filters.Regex("^🔙 Назад$"), start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
     app.add_handler(MessageHandler(filters.VOICE, save_greeting))
@@ -1739,7 +1916,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, save_comment), group=1)
     app.add_handler(CallbackQueryHandler(callback_handler))
     
-    logger.info("🚀✨ Бот запущен! АНАЛИЗ ДРУЖБЫ ✨🚀")
+    logger.info("🚀✨ Бот запущен! ДИПЛОМ-АНАЛИЗ + АДМИН-ТЕСТЫ ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
