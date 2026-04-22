@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 7.0 — ФИНАЛЬНАЯ ВЕРСИЯ
+Версия: 7.1 — ЯРКИЙ ДИПЛОМ + СВОЙ ВОПРОС
 """
 
 import logging
@@ -224,51 +224,51 @@ QUESTIONS = {
 
 # === СТАТУСЫ ДРУЖБЫ ===
 def get_friendship_status(score):
-    if score >= 90: return "👯‍♀️ СЁСТРЫ НАВЕК! 💕"
-    if score >= 70: return "💎 ЛУЧШИЕ ПОДРУГИ! 💎"
-    if score >= 50: return "🌸 ХОРОШИЕ ПОДРУЖКИ! 🌸"
-    if score >= 30: return "👋 ПРИЯТЕЛЬНИЦЫ! 👋"
-    return "🤔 ПОКА ЗНАКОМЫЕ 🤔"
+    if score >= 90: return "СЁСТРЫ НАВЕК!"
+    if score >= 70: return "ЛУЧШИЕ ПОДРУГИ!"
+    if score >= 50: return "ХОРОШИЕ ПОДРУЖКИ!"
+    if score >= 30: return "ПРИЯТЕЛЬНИЦЫ!"
+    return "ПОКА ЗНАКОМЫЕ"
 
 def get_friendship_prediction(score, name):
     if score >= 90:
         predictions = [
-            f"💕 {name} — твоя родственная душа! Вы понимаете друг друга с полуслова. Береги эту дружбу, она особенная!",
-            f"👯‍♀️ {name} знает тебя лучше всех! Вы как сёстры — такие друзья встречаются раз в жизни.",
-            f"🌟 {name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга!"
+            f"{name} — твоя родственная душа! Вы понимаете друг друга с полуслова. Береги эту дружбу, она особенная!",
+            f"{name} знает тебя лучше всех! Вы как сёстры — такие друзья встречаются раз в жизни.",
+            f"{name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга!"
         ]
     elif score >= 70:
         predictions = [
-            f"💎 {name} очень хорошо тебя знает! Вы близкие подруги, и ваша дружба только крепнет.",
-            f"🌸 {name} понимает тебя почти во всём. Ещё немного — и вы станете лучшими подругами!",
-            f"✨ Вы с {name} на одной волне! Продолжайте узнавать друг друга ещё лучше."
+            f"{name} очень хорошо тебя знает! Вы близкие подруги, и ваша дружба только крепнет.",
+            f"{name} понимает тебя почти во всём. Ещё немного — и вы станете лучшими подругами!",
+            f"Вы с {name} на одной волне! Продолжайте узнавать друг друга ещё лучше."
         ]
     elif score >= 50:
         predictions = [
-            f"👭 {name} знает тебя неплохо, но есть куда расти! Проводите больше времени вместе.",
-            f"🌱 Ваша дружба с {name} только расцветает! Узнавайте друг друга глубже.",
-            f"💫 {name} уже многое о тебе знает. Ещё немного — и вы станете ближе!"
+            f"{name} знает тебя неплохо, но есть куда расти! Проводите больше времени вместе.",
+            f"Ваша дружба с {name} только расцветает! Узнавайте друг друга глубже.",
+            f"{name} уже многое о тебе знает. Ещё немного — и вы станете ближе!"
         ]
     elif score >= 30:
         predictions = [
-            f"👋 {name} только начинает тебя узнавать. Это отличный повод пообщаться побольше!",
-            f"🤝 Вы с {name} на пути к настоящей дружбе. Не останавливайтесь!",
-            f"🌿 {name} знает о тебе основы. Расскажи ей о себе побольше!"
+            f"{name} только начинает тебя узнавать. Это отличный повод пообщаться побольше!",
+            f"Вы с {name} на пути к настоящей дружбе. Не останавливайтесь!",
+            f"{name} знает о тебе основы. Расскажи ей о себе побольше!"
         ]
     else:
         predictions = [
-            f"🤔 {name} пока плохо тебя знает. Но это только начало вашей дружбы!",
-            f"💭 {name} ещё предстоит узнать тебя получше. Устройте совместную прогулку!",
-            f"🌙 Ваша дружба с {name} только зарождается. Впереди много интересного!"
+            f"{name} пока плохо тебя знает. Но это только начало вашей дружбы!",
+            f"{name} ещё предстоит узнать тебя получше. Устройте совместную прогулку!",
+            f"Ваша дружба с {name} только зарождается. Впереди много интересного!"
         ]
     return random.choice(predictions)
 
 def get_detailed_stats(score):
-    if score >= 90: return "🌟 ЭКСПЕРТ", "Знает тебя наизусть!"
-    elif score >= 70: return "💎 ПРОФИ", "Отлично тебя знает!"
-    elif score >= 50: return "🌸 ЛЮБИТЕЛЬ", "Хорошо тебя знает"
-    elif score >= 30: return "🌱 НОВИЧОК", "Только узнаёт тебя"
-    else: return "🤔 НЕЗНАКОМКА", "Почти не знает тебя"
+    if score >= 90: return "ЭКСПЕРТ", "Знает тебя наизусть!"
+    elif score >= 70: return "ПРОФИ", "Отлично тебя знает!"
+    elif score >= 50: return "ЛЮБИТЕЛЬ", "Хорошо тебя знает"
+    elif score >= 30: return "НОВИЧОК", "Только узнаёт тебя"
+    else: return "НЕЗНАКОМКА", "Почти не знает тебя"
 
 # === БАЗА ДАННЫХ ===
 def get_db():
@@ -498,23 +498,29 @@ def get_all_users():
     conn.close()
     return users
 
-# === ДИПЛОМ-АНАЛИЗ ===
+# === ДИПЛОМ-АНАЛИЗ (ЯРКИЙ, БЕЗ ЭМОДЗИ) ===
 async def generate_friendship_analysis(user_name, creator_name, test_title, score, status, prediction, categories_stats):
-    """Создаёт огромный красивый диплом с эмодзи"""
+    """Создаёт яркий, красивый диплом с анализом дружбы (без эмодзи)"""
     width, height = 1600, 1300
-    bg_color = '#0A0E17'
-    image = Image.new('RGB', (width, height), bg_color)
+    
+    image = Image.new('RGB', (width, height), '#1A0B2E')
     draw = ImageDraw.Draw(image)
     
+    for y in range(height):
+        ratio = y / height
+        r = int(26 + (45 - 26) * ratio)
+        g = int(11 + (25 - 11) * ratio)
+        b = int(46 + (80 - 46) * ratio)
+        draw.line([(0, y), (width, y)], fill=(r, g, b))
+    
     try:
-        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 64)
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 72)
         font_heading = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 36)
-        font_score = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 140)
-        font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 30)
-        font_prediction = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf", 34)
-    except Exception as e:
-        logger.error(f"Ошибка загрузки шрифтов: {e}")
+        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 34)
+        font_score = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 150)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 28)
+        font_prediction = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf", 32)
+    except:
         font_title = ImageFont.load_default()
         font_heading = ImageFont.load_default()
         font_text = ImageFont.load_default()
@@ -522,107 +528,102 @@ async def generate_friendship_analysis(user_name, creator_name, test_title, scor
         font_small = ImageFont.load_default()
         font_prediction = ImageFont.load_default()
     
-    primary = '#FF3366'
-    secondary = '#00CCFF'
     gold = '#FFD700'
-    text_white = '#FFFFFF'
-    text_gray = '#C8C8C8'
-    text_light = '#F0F0F0'
+    pink = '#FF6B9D'
+    purple = '#A855F7'
+    cyan = '#06B6D4'
+    white = '#FFFFFF'
+    light_gray = '#E2E8F0'
+    gray = '#94A3B8'
     
-    for y in range(height):
-        ratio = y / height
-        r = int(10 + (28 - 10) * ratio)
-        g = int(14 + (38 - 14) * ratio)
-        b = int(23 + (50 - 23) * ratio)
-        draw.line([(0, y), (width, y)], fill=(r, g, b))
+    draw.ellipse([width-500, -300, width+300, 500], fill='#FF6B9D20', outline='#FF6B9D40', width=4)
+    draw.ellipse([-350, height-500, 300, height+300], fill='#A855F740', outline='#A855F760', width=4)
+    draw.ellipse([width//2-200, height//2-200, width//2+200, height//2+200], fill='#06B6D415')
     
-    draw.ellipse([width-450, -250, width+250, 450], fill=primary+'08', outline=primary+'15', width=3)
-    draw.ellipse([-300, height-450, 250, height+250], fill=secondary+'08', outline=secondary+'15', width=3)
-    draw.ellipse([width//2-150, height//2-150, width//2+150, height//2+150], fill=primary+'05')
+    draw.rectangle([25, 25, width-25, height-25], outline=gold, width=5)
+    draw.rectangle([40, 40, width-40, height-40], outline=pink, width=3)
+    draw.rectangle([50, 50, width-50, height-50], outline=purple, width=1)
     
-    draw.rectangle([20, 20, width-20, height-20], outline=gold, width=4)
-    draw.rectangle([32, 32, width-32, height-32], outline=primary, width=2)
-    draw.rectangle([42, 42, width-42, height-42], outline=secondary, width=1)
-    
-    title = "📊 АНАЛИЗ ДРУЖБЫ 📊"
+    title = "АНАЛИЗ ДРУЖБЫ"
     bbox = draw.textbbox((0, 0), title, font=font_title)
     title_width = bbox[2] - bbox[0]
-    draw.text((width//2 - title_width//2, 55), title, fill=gold, font=font_title)
+    draw.text((width//2 - title_width//2, 60), title, fill=gold, font=font_title)
     
-    draw.rectangle([width//5, 130, width*4//5, 134], fill=primary)
+    draw.rectangle([width//4, 145, width*3//4, 150], fill=pink)
+    draw.rectangle([width//3, 155, width*2//3, 158], fill=purple)
     
-    y = 190
-    text1 = f"👤 {user_name} знает {creator_name} на:"
+    y = 210
+    text1 = f"{user_name} знает {creator_name} на:"
     bbox = draw.textbbox((0, 0), text1, font=font_heading)
     text1_width = bbox[2] - bbox[0]
-    draw.text((width//2 - text1_width//2, y), text1, fill=text_white, font=font_heading)
+    draw.text((width//2 - text1_width//2, y), text1, fill=white, font=font_heading)
     
-    y = 280
+    y = 300
     score_text = f"{score:.0f}%"
     bbox = draw.textbbox((0, 0), score_text, font=font_score)
     score_width = bbox[2] - bbox[0]
     
     if score >= 70:
-        score_color = '#2EA043'
+        score_color = '#10B981'
     elif score >= 50:
-        score_color = '#FFA500'
+        score_color = '#F59E0B'
     else:
-        score_color = '#FF4444'
+        score_color = '#EF4444'
     
-    draw.text((width//2 - score_width//2 + 5, y + 5), score_text, fill='#00000060', font=font_score)
+    draw.text((width//2 - score_width//2 + 6, y + 6), score_text, fill='#00000050', font=font_score)
     draw.text((width//2 - score_width//2, y), score_text, fill=score_color, font=font_score)
     
-    y = 430
-    subtitle = "🎯 ОБЩИЙ РЕЗУЛЬТАТ"
+    y = 460
+    subtitle = "ОБЩИЙ РЕЗУЛЬТАТ"
     bbox = draw.textbbox((0, 0), subtitle, font=font_small)
     sub_width = bbox[2] - bbox[0]
-    draw.text((width//2 - sub_width//2, y), subtitle, fill=text_gray, font=font_small)
+    draw.text((width//2 - sub_width//2, y), subtitle, fill=gray, font=font_small)
     
-    y = 480
-    draw.rectangle([width//5, y, width*4//5, y+3], fill=text_gray+'30')
+    y = 510
+    draw.rectangle([width//5, y, width*4//5, y+3], fill=pink+'60')
     
-    y = 540
-    draw.text((80, y), "📋 ПО КАТЕГОРИЯМ:", fill=text_light, font=font_heading)
+    y = 570
+    draw.text((80, y), "ПО КАТЕГОРИЯМ:", fill=light_gray, font=font_heading)
     
     y += 70
     if categories_stats:
         for cat, stats in list(categories_stats.items())[:5]:
             cat_score = stats['correct'] * 100 / stats['total'] if stats['total'] > 0 else 0
             
-            draw.text((100, y), cat, fill=text_gray, font=font_text)
+            draw.text((100, y), cat, fill=gray, font=font_text)
             
             bar_width = 550
             bar_x = 500
             bar_y = y + 8
             
-            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_width, bar_y+28], radius=14, fill='#1A1A2E', outline=text_gray+'30', width=1)
+            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_width, bar_y+28], radius=14, fill='#2D1B4E', outline=pink+'40', width=2)
             
             fill_width = int(bar_width * cat_score / 100)
             if fill_width > 0:
                 if cat_score >= 70:
-                    bar_color = '#2EA043'
+                    bar_color = '#10B981'
                 elif cat_score >= 50:
-                    bar_color = '#FFA500'
+                    bar_color = '#F59E0B'
                 else:
-                    bar_color = '#FF4444'
+                    bar_color = '#EF4444'
                 draw.rounded_rectangle([bar_x, bar_y, bar_x+fill_width, bar_y+28], radius=14, fill=bar_color)
             
             percent_text = f"{cat_score:.0f}%"
             bbox = draw.textbbox((0, 0), percent_text, font=font_text)
-            draw.text((bar_x + bar_width + 20, y), percent_text, fill=text_white, font=font_text)
+            draw.text((bar_x + bar_width + 20, y), percent_text, fill=white, font=font_text)
             
             y += 75
     
     y += 20
-    draw.rectangle([width//5, y, width*4//5, y+3], fill=text_gray+'30')
+    draw.rectangle([width//5, y, width*4//5, y+3], fill=pink+'60')
     
     y += 60
-    draw.text((80, y), "🏆 ВЕРДИКТ:", fill=text_light, font=font_heading)
+    draw.text((80, y), "ВЕРДИКТ:", fill=light_gray, font=font_heading)
     y += 60
     draw.text((100, y), status, fill=gold, font=font_text)
     
     y += 90
-    draw.text((80, y), "🔮 ПРЕДСКАЗАНИЕ:", fill=text_light, font=font_heading)
+    draw.text((80, y), "ПРЕДСКАЗАНИЕ:", fill=light_gray, font=font_heading)
     y += 65
     
     words = prediction.split()
@@ -640,21 +641,21 @@ async def generate_friendship_analysis(user_name, creator_name, test_title, scor
         lines.append(' '.join(current_line))
     
     for line in lines:
-        draw.text((100, y), line, fill=text_gray, font=font_prediction)
+        draw.text((100, y), line, fill=gray, font=font_prediction)
         y += 45
     
     footer_y = height - 80
     date_text = datetime.now().strftime("%d.%m.%Y")
-    draw.text((50, footer_y), date_text, fill=text_gray, font=font_small)
+    draw.text((50, footer_y), date_text, fill=gray, font=font_small)
     
     cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
     cert_text = f"ID: {cert_id}"
     bbox = draw.textbbox((0, 0), cert_text, font=font_small)
     cert_width = bbox[2] - bbox[0]
-    draw.text((width-50-cert_width, footer_y), cert_text, fill=text_gray, font=font_small)
+    draw.text((width-50-cert_width, footer_y), cert_text, fill=gray, font=font_small)
     
-    stars = ["★", "☆", "✦", "✧"]
-    positions = [(35, 35), (width-35, 35), (35, height-35), (width-35, height-35)]
+    stars = ["★", "★", "★", "★"]
+    positions = [(40, 40), (width-40, 40), (40, height-40), (width-40, height-40)]
     for i, (x, y_pos) in enumerate(positions):
         draw.text((x-15, y_pos-15), stars[i], fill=gold, font=font_title)
     
@@ -710,7 +711,8 @@ def get_question_choice_keyboard():
         [InlineKeyboardButton("🔄 Другой вопрос", callback_data="next_question"),
          InlineKeyboardButton("🎲 Случайный", callback_data="random_question")],
         [InlineKeyboardButton("✅ Этот вопрос", callback_data="select_question")],
-        [InlineKeyboardButton("📸 Добавить фото", callback_data="add_photo")]
+        [InlineKeyboardButton("📸 Добавить фото", callback_data="add_photo"),
+         InlineKeyboardButton("✏️ Свой вопрос", callback_data="custom_question")]
     ])
 
 def get_test_actions_keyboard(test_id):
@@ -1241,6 +1243,26 @@ async def add_photo_to_question(update: Update, context: ContextTypes.DEFAULT_TY
         parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard()
     )
 
+async def custom_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Пользователь вводит свой вопрос"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = context.user_data.get('creating_test')
+    if not data:
+        return
+    
+    data['waiting_custom_question'] = True
+    
+    await query.message.reply_text(
+        "✏️ *ВВЕДИ СВОЙ ВОПРОС*\n\n"
+        "Напиши свой уникальный вопрос:\n\n"
+        "💡 *Пример:* «Какое моё самое неловкое воспоминание?»\n\n"
+        "❌ *Отмена* — чтобы вернуться к выбору",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_cancel_keyboard()
+    )
+
 async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('creating_test')
     if not data or not data.get('waiting_photo'):
@@ -1430,7 +1452,15 @@ async def send_question(query, context):
     data = context.user_data.get('taking_test')
     test = data['test']
     current = data['current']
-    photos = json.loads(test.get('question_photos', '{}'))
+    
+    photos_raw = test.get('question_photos')
+    if photos_raw:
+        try:
+            photos = json.loads(photos_raw)
+        except:
+            photos = {}
+    else:
+        photos = {}
     
     if str(current) in photos:
         keyboard = []
@@ -1466,7 +1496,15 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     data['answers'].append(answer_idx)
     
-    comments = json.loads(test.get('answer_comments', '{}'))
+    comments_raw = test.get('answer_comments')
+    if comments_raw:
+        try:
+            comments = json.loads(comments_raw)
+        except:
+            comments = {}
+    else:
+        comments = {}
+    
     comment = comments.get(str(current), None)
     
     if is_correct:
@@ -1522,7 +1560,7 @@ async def finish_test(query, context):
                 category = QUESTION_GROUPS.get(cat, cat)
                 break
         if not category:
-            category = "❓ Другое"
+            category = "Другое"
         
         if category not in categories_stats:
             categories_stats[category] = {'correct': 0, 'total': 0}
@@ -1597,10 +1635,10 @@ async def battle_friends(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, a in enumerate(sorted_attempts[:5], 1):
         score = a['score']
         status = get_friendship_status(score)
-        if i == 1: medal, comment = "🥇", "Абсолютный чемпион! 👑"
-        elif i == 2: medal, comment = "🥈", "Отличный результат! 💎"
-        elif i == 3: medal, comment = "🥉", "Хороший результат! 🌸"
-        else: medal, comment = f"{i}.", "Есть куда расти! 🌱"
+        if i == 1: medal, comment = "🥇", "Абсолютный чемпион!"
+        elif i == 2: medal, comment = "🥈", "Отличный результат!"
+        elif i == 3: medal, comment = "🥉", "Хороший результат!"
+        else: medal, comment = f"{i}.", "Есть куда расти!"
         text += f"{medal} *{a['friend_name']}*\n   🎯 Результат: *{score:.0f}%*\n   🏆 Статус: {status}\n   💬 _{comment}_\n\n"
     
     if len(sorted_attempts) >= 2:
@@ -1634,7 +1672,10 @@ async def friendship_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bar_length = 10
         filled = int(score / 10)
         bar = "█" * filled + "░" * (bar_length - filled)
-        emoji = "💕" if score >= 80 else "🌸" if score >= 60 else "👋" if score >= 40 else "🤔"
+        if score >= 80: emoji = "💕"
+        elif score >= 60: emoji = "🌸"
+        elif score >= 40: emoji = "👋"
+        else: emoji = "🤔"
         text += f"{emoji} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n"
         if score >= 80: text += f"   💎 *Знает отлично!*\n\n"
         elif score >= 60: text += f"   🌸 *Знает хорошо*\n\n"
@@ -1731,6 +1772,17 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await admin_add_tests_start(update, context)
     elif text == "❌ Отмена":
         if 'creating_test' in context.user_data:
+            data = context.user_data['creating_test']
+            if data.get('waiting_custom_question'):
+                data['waiting_custom_question'] = False
+                await update.message.reply_text("🔙 Возвращаемся к выбору вопроса...")
+                await show_question_for_selection(update, context)
+                return
+            if data.get('waiting_photo'):
+                data['waiting_photo'] = False
+                await update.message.reply_text("🔙 Возвращаемся к выбору вопроса...")
+                await show_question_for_selection(update, context)
+                return
             del context.user_data['creating_test']
             await update.message.reply_text("❌ Создание отменено", reply_markup=get_main_keyboard(user_id))
         elif context.user_data.get('admin_action'):
@@ -1784,6 +1836,31 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data and data.get('waiting_photo'):
             return
         
+        if data and data.get('waiting_custom_question'):
+            text = update.message.text.strip()
+            if len(text) < 5:
+                await update.message.reply_text("⚠️ Вопрос должен быть длиннее 5 символов!")
+                return
+            if len(text) > 150:
+                await update.message.reply_text("⚠️ Вопрос слишком длинный! До 150 символов.")
+                return
+            
+            data['current_question'] = text
+            data['waiting_custom_question'] = False
+            data['current_options'] = []
+            data['step'] = 'collecting_options'
+            data['waiting_for_option'] = True
+            
+            await update.message.reply_text(
+                f"✅ *Вопрос сохранён!*\n\n"
+                f"📝 *Твой вопрос:* {text}\n\n"
+                f"✏️ *Напиши вариант ответа №1:*\n\n"
+                f"💡 *Совет:* Варианты должны быть разными и понятными",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_cancel_keyboard()
+            )
+            return
+        
         if data and data.get('step') == 'collecting_options':
             if data.get('waiting_for_option'):
                 await handle_create_test(update, context)
@@ -1826,6 +1903,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await select_this_question(update, context)
     elif data == "add_photo":
         await add_photo_to_question(update, context)
+    elif data == "custom_question":
+        await custom_question(update, context)
     elif data.startswith("correct_"):
         await select_correct(update, context)
     elif data.startswith("skip_comment_"):
@@ -1933,8 +2012,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif score >= 60: text += f"🌸 *Она тебя хорошо знает!*\n\n"
         elif score >= 40: text += f"👋 *Она тебя неплохо знает*\n\n"
         else: text += f"🤔 *Вам стоит получше узнать друг друга*\n\n"
-        text += f"🔮 *Предсказание дружбы:*\n_{prediction}_\n\n━━━━━━━━━━━━━━━━\n*📋 ВСЕ ВОПРОСЫ И ОТВЕТЫ:*\n\n"
-        comments = json.loads(test.get('answer_comments', '{}'))
+        text += f"🔮 *Предсказание дружбы:*\n_{prediction}_\n\n━━━━━━━━━━━━━━━━\n*ВСЕ ВОПРОСЫ И ОТВЕТЫ:*\n\n"
+        comments_raw = test.get('answer_comments')
+        if comments_raw:
+            try:
+                comments = json.loads(comments_raw)
+            except:
+                comments = {}
+        else:
+            comments = {}
         for i, q in enumerate(test['questions']):
             text += f"*{i+1}. {q}*\n"
             if i < len(attempt['answers']):
@@ -1996,7 +2082,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, save_comment), group=1)
     app.add_handler(CallbackQueryHandler(callback_handler))
     
-    logger.info("🚀✨ Бот запущен! ФИНАЛЬНАЯ ВЕРСИЯ 7.0 ✨🚀")
+    logger.info("🚀✨ Бот запущен! ЯРКИЙ ДИПЛОМ + СВОЙ ВОПРОС ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
