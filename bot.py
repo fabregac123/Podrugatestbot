@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 7.1 — ЯРКИЙ ДИПЛОМ + СВОЙ ВОПРОС
+Версия: 8.0 — ИНТЕГРАЦИЯ ЮKASSA
 """
 
 import logging
@@ -16,9 +16,9 @@ import io
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.constants import ParseMode
-from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler, PreCheckoutQueryHandler
 
 load_dotenv()
 
@@ -34,6 +34,10 @@ FREE_TESTS_LIMIT = 5
 MAX_QUESTIONS = 10
 MAX_OPTIONS = 4
 ADMIN_ID = 710623393
+
+# ЮKassa токен
+PROVIDER_TOKEN = "390540012:LIVE:94976"
+CURRENCY = "RUB"
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1734,21 +1738,74 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if query.data == "buy_15days":
         days = 15
-        price = "99₽"
-        tariff = "15 дней"
+        price_rub = 99
+        price_kop = price_rub * 100
+        title = "Premium на 15 дней"
+        description = "Безлимитные тесты, золотой диплом, ответы подруг"
     else:
         days = 30
-        price = "149₽"
-        tariff = "месяц"
+        price_rub = 149
+        price_kop = price_rub * 100
+        title = "Premium на 30 дней"
+        description = "Безлимитные тесты, золотой диплом, ответы подруг"
     
-    await query.message.reply_text(
-        f"💎 *ОПЛАТА ПРЕМИУМА*\n\n"
-        f"Тариф: *{tariff}*\n"
-        f"Сумма: *{price}*\n\n"
-        f"Для оплаты напишите: @LavaTopBot\n"
-        f"После оплаты сообщите админу: @SergeyMarko\n\n"
+    prices = [LabeledPrice(label=title, amount=price_kop)]
+    
+    await context.bot.send_invoice(
+        chat_id=query.message.chat_id,
+        title=title,
+        description=description,
+        payload=f"premium_{days}",
+        provider_token=PROVIDER_TOKEN,
+        currency=CURRENCY,
+        prices=prices,
+        need_phone_number=True,
+        send_phone_number_to_provider=True
+    )
+
+async def pre_checkout_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.pre_checkout_query
+    await query.answer(ok=True)
+
+async def successful_payment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    user_id = message.from_user.id
+    payment = message.successful_payment
+    
+    days = 30
+    if payment.invoice_payload == "premium_15":
+        days = 15
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    c.execute('SELECT premium_until FROM users WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+    
+    if row and row['premium_until']:
+        current_until = datetime.fromisoformat(row['premium_until'])
+        if current_until > datetime.now():
+            new_until = current_until + timedelta(days=days)
+        else:
+            new_until = datetime.now() + timedelta(days=days)
+    else:
+        new_until = datetime.now() + timedelta(days=days)
+    
+    c.execute('UPDATE users SET is_premium = 1, premium_until = ? WHERE user_id = ?', 
+              (new_until.isoformat(), user_id))
+    conn.commit()
+    conn.close()
+    
+    day_word = decline_word(days, "день", "дня", "дней")
+    await message.reply_text(
+        f"✅ *ОПЛАТА УСПЕШНА!*\n\n"
+        f"💎 Premium активирован на *{days} {day_word}*!\n"
+        f"♾️ Безлимитные тесты\n"
+        f"🎓 Золотой диплом\n"
+        f"📊 Ответы подруг\n\n"
         f"💖 *Спасибо за поддержку!*",
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_main_keyboard(user_id)
     )
 
 # === ОБРАБОТЧИКИ КНОПОК ===
@@ -2080,9 +2137,14 @@ def main():
     app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
     app.add_handler(MessageHandler(filters.PHOTO, save_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, save_comment), group=1)
+    
+    # Платёжные обработчики
+    app.add_handler(PreCheckoutQueryHandler(pre_checkout_handler))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_handler))
+    
     app.add_handler(CallbackQueryHandler(callback_handler))
     
-    logger.info("🚀✨ Бот запущен! ЯРКИЙ ДИПЛОМ + СВОЙ ВОПРОС ✨🚀")
+    logger.info("🚀✨ Бот запущен! ЮKASSA ИНТЕГРАЦИЯ ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
