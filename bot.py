@@ -1228,6 +1228,7 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c = conn.cursor()
     
     today = datetime.now().date().isoformat()
+    yesterday = (datetime.now() - timedelta(days=1)).date().isoformat()
     week_ago = (datetime.now() - timedelta(days=7)).date().isoformat()
     month_ago = (datetime.now() - timedelta(days=30)).date().isoformat()
     
@@ -1235,54 +1236,145 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_users = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM users WHERE DATE(created_at) = ?', (today,))
     new_today = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM users WHERE DATE(created_at) = ?', (yesterday,))
+    new_yesterday = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM users WHERE created_at >= ?', (week_ago,))
     new_week = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM users WHERE created_at >= ?', (month_ago,))
     new_month = c.fetchone()[0]
     
+    c.execute('''SELECT COUNT(DISTINCT user_id) FROM (
+        SELECT user_id FROM users WHERE created_at >= ?
+        UNION SELECT creator_id FROM tests WHERE created_at >= ?
+        UNION SELECT friend_id FROM attempts WHERE completed_at >= ?
+    )''', (week_ago, week_ago, week_ago))
+    active_users_7d = c.fetchone()[0]
+    
     c.execute('SELECT COUNT(*) FROM users WHERE premium_until > ?', (today,))
     premium_active = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM users WHERE premium_until IS NOT NULL')
     premium_total = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM users WHERE premium_until > ? AND premium_until <= ?', 
+              (today, (datetime.now() + timedelta(days=7)).date().isoformat()))
+    premium_expiring = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM users WHERE premium_until > ? AND premium_until > ?', (week_ago, today))
+    premium_new_week = c.fetchone()[0]
+    conversion = round(premium_total / max(total_users, 1) * 100, 1)
     
     c.execute('SELECT COUNT(*) FROM tests')
     total_tests = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM tests WHERE DATE(created_at) = ?', (today,))
+    tests_today = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM tests WHERE created_at >= ?', (week_ago,))
+    tests_week = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM tests WHERE created_at >= ?', (month_ago,))
     tests_month = c.fetchone()[0]
+    avg_tests_per_user = round(total_tests / max(total_users, 1), 1)
+    
+    c.execute('SELECT COUNT(*) FROM tests WHERE greeting_type IS NOT NULL')
+    tests_with_greeting = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM tests WHERE question_photos IS NOT NULL AND question_photos != "{}"')
+    tests_with_photos = c.fetchone()[0]
     
     c.execute('SELECT COUNT(*) FROM attempts')
     total_attempts = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM attempts WHERE DATE(completed_at) = ?', (today,))
+    attempts_today = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM attempts WHERE completed_at >= ?', (week_ago,))
+    attempts_week = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM attempts WHERE completed_at >= ?', (month_ago,))
+    attempts_month = c.fetchone()[0]
     c.execute('SELECT AVG(score) FROM attempts')
     avg_score = c.fetchone()[0] or 0
+    c.execute('SELECT MAX(score) FROM attempts')
+    max_score = c.fetchone()[0] or 0
+    avg_attempts_per_test = round(total_attempts / max(total_tests, 1), 1)
+    
+    c.execute('''SELECT u.first_name, COUNT(t.id) as cnt FROM users u 
+                 LEFT JOIN tests t ON u.user_id = t.creator_id 
+                 GROUP BY u.user_id ORDER BY cnt DESC LIMIT 3''')
+    top_creators = c.fetchall()
+    
+    c.execute('''SELECT friend_name, COUNT(*) as cnt FROM attempts 
+                 GROUP BY friend_name ORDER BY cnt DESC LIMIT 3''')
+    top_players = c.fetchall()
+    
+    c.execute('''SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as cnt 
+                 FROM tests WHERE created_at >= ? GROUP BY hour ORDER BY cnt DESC LIMIT 1''', (month_ago,))
+    peak_test_hour = c.fetchone()
+    
+    c.execute('''SELECT CAST(strftime('%H', completed_at) AS INTEGER) as hour, COUNT(*) as cnt 
+                 FROM attempts WHERE completed_at >= ? GROUP BY hour ORDER BY cnt DESC LIMIT 1''', (month_ago,))
+    peak_attempt_hour = c.fetchone()
     
     conn.close()
+    
+    trend_emoji = "📈" if new_today >= new_yesterday else "📉" if new_today < new_yesterday else "➡️"
     
     text = f"""
 📊✨ *СТАТИСТИКА БОТА* ✨📊
 🕒 {datetime.now().strftime('%d.%m.%Y %H:%M')}
-━━━━━━━━━━━━━━━━━━━━━━
 
 👥 *ПОЛЬЗОВАТЕЛИ*
 ├ 👑 Всего: *{total_users}*
-├ 🆕 Сегодня: *+{new_today}*
+├ 🆕 Сегодня: *+{new_today}* {trend_emoji}
 ├ 📈 За неделю: *+{new_week}*
-└ 📅 За месяц: *+{new_month}*
+├ 📅 За месяц: *+{new_month}*
+└ 🟢 Активных (7д): *{active_users_7d}*
 
 💎 *ПРЕМИУМ*
 ├ ✨ Активных: *{premium_active}*
 ├ 💰 Всего купили: *{premium_total}*
-└ 📊 Конверсия: *{round(premium_total/max(total_users,1)*100, 1)}%*
+├ 🆕 Новых за неделю: *+{premium_new_week}*
+├ ⚠️ Истекает (7д): *{premium_expiring}*
+└ 📊 Конверсия: *{conversion}%*
 
 📝 *ТЕСТЫ*
-├ 📋 Всего создано: *{total_tests}*
-└ 📅 За месяц: *+{tests_month}*
+├ 📋 Всего: *{total_tests}*
+├ 🆕 Сегодня: *+{tests_today}*
+├ 📈 За неделю: *+{tests_week}*
+├ 📅 За месяц: *+{tests_month}*
+├ 👤 На пользователя: *{avg_tests_per_user}*
+├ 🎬 С поздравлениями: *{tests_with_greeting}*
+└ 📸 С фото: *{tests_with_photos}*
 
 🎯 *ПРОХОЖДЕНИЯ*
 ├ 🎮 Всего: *{total_attempts}*
-└ 🎯 Средний балл: *{avg_score:.1f}%*
-
-💡 *АНАЛИЗ:* {'🚀 Бот активно растёт!' if new_week > 100 else '📈 Стабильный рост. Продолжай продвигать!'}
+├ 🆕 Сегодня: *+{attempts_today}*
+├ 📅 За месяц: *+{attempts_month}*
+├ 📊 На тест: *{avg_attempts_per_test}*
+├ 🎯 Средний балл: *{avg_score:.1f}%*
+└ 👑 Лучший балл: *{max_score:.0f}%*
 """
+    
+    if top_creators:
+        text += "\n🏆 *ТОП СОЗДАТЕЛЕЙ*\n"
+        for i, creator in enumerate(top_creators, 1):
+            name = creator['first_name'] or "Аноним"
+            text += f"├ {i}. {name}: *{creator['cnt']}* тестов\n"
+    
+    if top_players:
+        text += "\n🎮 *ТОП ПРОХОЖДЕНИЙ*\n"
+        for i, player in enumerate(top_players, 1):
+            text += f"├ {i}. {player['friend_name']}: *{player['cnt']}* раз\n"
+    
+    if peak_test_hour or peak_attempt_hour:
+        text += "\n⏰ *ПИКОВЫЕ ЧАСЫ*\n"
+        if peak_test_hour:
+            text += f"├ Создание: *{peak_test_hour['hour']}:00* ({peak_test_hour['cnt']} шт.)\n"
+        if peak_attempt_hour:
+            text += f"└ Прохождение: *{peak_attempt_hour['hour']}:00* ({peak_attempt_hour['cnt']} шт.)\n"
+    
+    if conversion > 20:
+        analysis = "🚀 Отличная конверсия в Premium!"
+    elif conversion > 10:
+        analysis = "📈 Хорошая конверсия. Есть куда расти!"
+    elif active_users_7d > 3:
+        analysis = "👥 Пользователи активны. Работай над монетизацией"
+    else:
+        analysis = "📊 Продолжай продвигать бота!"
+    
+    text += f"\n💡 *АНАЛИЗ:* {analysis}"
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Обновить", callback_data="admin_refresh_stats")],
@@ -1293,14 +1385,23 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
 
 async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    query = update.callback_query
+    if query:
+        await query.answer()
+        user_id = query.from_user.id
+    else:
+        user_id = update.effective_user.id
+    
     if user_id != ADMIN_ID:
         return
     
     stats = get_server_stats()
     
     if 'error' in stats:
-        await update.message.reply_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
+        if query:
+            await query.message.edit_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
         return
     
     cpu_emoji = get_server_status_emoji(stats['cpu']['percent'])
@@ -1334,7 +1435,10 @@ async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAU
         [InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")]
     ])
     
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    if query:
+        await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    else:
+        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
 
 async def admin_antispam_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1623,9 +1727,9 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn = get_db()
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE user_id = ?', (int(target),))
         else:
-            c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
+            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE username = ?', (target,))
         row = c.fetchone()
         
         if not row:
@@ -1634,18 +1738,27 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             del context.user_data['admin_action']
             return
         
+        old_tests = row['tests_created']
         add_tests_to_user(row['user_id'], count)
+        
+        c.execute('SELECT tests_created FROM users WHERE user_id = ?', (row['user_id'],))
+        new_row = c.fetchone()
+        new_tests = new_row['tests_created']
+        conn.close()
+        
+        actual_added = old_tests - new_tests
         available = get_available_tests_count(row['user_id'])
+        available_text = f"♾️ безлимит" if available == -1 else str(available)
+        test_word = decline_word(actual_added, "тест", "теста", "тестов")
         
         await update.message.reply_text(
-            f"✅ *{row['first_name'] or target}* начислено *{count}* тестов!\n📊 Доступно: *{available}*",
+            f"✅ *{row['first_name'] or target}* начислено *{actual_added}* {test_word}!\n📊 Доступно: *{available_text}*",
             parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard()
         )
         try:
-            await context.bot.send_message(chat_id=row['user_id'], text=f"🎁 Вам начислено +{count} тестов!")
+            await context.bot.send_message(chat_id=row['user_id'], text=f"🎁 Вам начислено +{actual_added} {test_word}!")
         except:
             pass
-        conn.close()
         del context.user_data['admin_action']
 
 # === СОЗДАНИЕ ТЕСТА ===
@@ -1867,13 +1980,22 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 Создано тестов: *{len(tests)}*\n\n💕 *Твои тесты:*\n\n"
+    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 Создано тестов: *{len(tests)}*\n\n"
     keyboard = []
     for i, t in enumerate(tests, 1):
         word = decline_friend_word(t['attempts'])
-        status = "🔥 ПОПУЛЯРНЫЙ" if t['attempts'] >= 5 else "⭐ АКТИВНЫЙ" if t['attempts'] >= 2 else "🆕 НОВЫЙ"
-        text += f"{i}. ✨ *{t['title'][:30]}*\n   👥 {t['attempts']} {word} | {status}\n   📅 {t['created_at'][:10]}\n\n"
-        keyboard.append([InlineKeyboardButton(f"✨ {t['title'][:30]} | {t['attempts']} 👥", callback_data=f"mytest_{t['id']}")])
+        if t['attempts'] >= 5:
+            status = "🔥 ПОПУЛЯРНЫЙ"
+            emoji = "💖"
+        elif t['attempts'] >= 2:
+            status = "⭐ АКТИВНЫЙ"
+            emoji = "🌸"
+        else:
+            status = "🆕 НОВЫЙ"
+            emoji = "✨"
+        
+        text += f"{emoji} *{t['title'][:30]}*\n   👥 {t['attempts']} {word} | {status}\n   📅 {t['created_at'][:10]}\n\n"
+        keyboard.append([InlineKeyboardButton(f"💕 {t['title'][:30]} | {t['attempts']} 👥", callback_data=f"mytest_{t['id']}")])
     
     text += "👇 *Выбери тест чтобы посмотреть:*"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -2074,12 +2196,10 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard()
                     )
                 else:
-                    data['waiting_for_option'] = True
                     await update.message.reply_text(
                         f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n"
                         f"📋 *Твои варианты:*\n{options_list}\n\n"
-                        f"✏️ *Напиши вариант №{len(data['current_options']) + 1}:*\n\n"
-                        f"💡 *Или нажми кнопку:*",
+                        f"➕ *Добавь ещё вариант или нажми «✅ Готово»*",
                         parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard()
                     )
             else:
@@ -2378,6 +2498,17 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         max_score = max(a['score'] for a in attempts)
         min_score = min(a['score'] for a in attempts)
         
+        # Получаем username заранее
+        conn = get_db()
+        c = conn.cursor()
+        usernames = {}
+        for a in sorted_attempts[:10]:
+            c.execute('SELECT username FROM users WHERE first_name = ?', (a['friend_name'],))
+            row = c.fetchone()
+            if row and row['username']:
+                usernames[a['friend_name']] = row['username']
+        conn.close()
+        
         text = f"📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n👥 *Твои подруги прошли тест:*\n\n"
         
         predictions = [
@@ -2402,7 +2533,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif score >= 30: emoji, status, pred = '🤝', 'ЗНАКОМАЯ', predictions[5]
             else: emoji, status, pred = '🦋', 'НОВАЯ ЗНАКОМАЯ', predictions[5]
             
-            text += f"{emoji} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n   🏆 Уровень: *{status}*\n   💬 _{pred}_\n\n"
+            username = f" @{usernames[a['friend_name']]}" if a['friend_name'] in usernames else ""
+            text += f"{emoji} *{a['friend_name']}*{username}\n   [{bar}] *{score:.0f}%*\n   🏆 Уровень: *{status}*\n   💬 _{pred}_\n\n"
         
         text += f"━━━━━━━━━━━━━━━━━━━━━━\n\n📊 *ОБЩАЯ СТАТИСТИКА:*\n\n"
         text += f"👥 Прошли тест: *{len(attempts)}* {decline_friend_word(len(attempts))}\n"
@@ -2832,3 +2964,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
