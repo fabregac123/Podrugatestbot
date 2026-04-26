@@ -1145,7 +1145,7 @@ def get_test_actions_keyboard(test_id):
 def get_share_keyboard(test_id):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("👭 Поделиться с подругой", 
-            switch_inline_query=f"💕 Пройди тест обо мне! 👉 https://t.me/{BOT_USERNAME}?start=test_{test_id}")]
+            switch_inline_query=f"💕 Привет! Пройди тест обо мне и узнай, насколько хорошо ты меня знаешь! 💕\n\n👉 https://t.me/{BOT_USERNAME}?start=test_{test_id}")]
     ])
 
 def get_premium_keyboard():
@@ -1663,10 +1663,10 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['creating_test'] = {'step': 'title'}
     
     is_prem = is_premium(user_id)
-    tests_info = "♾️ *Премиум — безлимит*" if is_prem else f"📊 *Осталось:* {get_available_tests_count(user_id)}"
+    tests_info = "♾️ *Премиум — безлимитные тесты*" if is_prem else f"📊 *Осталось тестов:* {get_available_tests_count(user_id)}"
     
     await update.message.reply_text(
-        f"🌸 *СОЗДАЁМ ТЕСТ*\n\n{tests_info}\n\nПридумай название:\n❌ *Отмена* — выйти",
+        f"🌸 *СОЗДАЁМ ТЕСТ*\n\n{tests_info}\n\nПридумай красивое название:\nНапример: «Насколько хорошо ты меня знаешь?»\n\n❌ *Отмена* — чтобы выйти",
         parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard()
     )
 
@@ -1749,15 +1749,16 @@ async def send_question(query, context):
     for i, opt in enumerate(test['options'][current]):
         keyboard.append([InlineKeyboardButton(opt[:40], callback_data=f"answer_{i}")])
     
+    question_text = f"💭 *ВОПРОС {current + 1} ИЗ {len(test['questions'])}*\n\n✨ {test['questions'][current]}\n\n_Выбери один вариант ответа:_ 🎯"
+    
     if str(current) in photos:
         await query.message.reply_photo(
             photo=photos[str(current)],
-            caption=f"❓ *Вопрос {current + 1}/{len(test['questions'])}*\n\n{test['questions'][current]}",
+            caption=question_text,
             parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        text = f"❓ *Вопрос {current + 1}/{len(test['questions'])}*\n\n{test['questions'][current]}"
-        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+        await query.message.reply_text(question_text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1866,13 +1867,13 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 *Создано тестов:* {len(tests)}\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 Создано тестов: *{len(tests)}*\n\n💕 *Твои тесты:*\n\n"
     keyboard = []
     for i, t in enumerate(tests, 1):
         word = decline_friend_word(t['attempts'])
         status = "🔥 ПОПУЛЯРНЫЙ" if t['attempts'] >= 5 else "⭐ АКТИВНЫЙ" if t['attempts'] >= 2 else "🆕 НОВЫЙ"
-        text += f"{i}. 📝 *{t['title'][:30]}*\n   👥 Прошли: *{t['attempts']}* {word}\n   📊 Статус: {status}\n   📅 Создан: {t['created_at'][:10]}\n\n"
-        keyboard.append([InlineKeyboardButton(f"📝 {t['title'][:30]} ({t['attempts']} 👥)", callback_data=f"mytest_{t['id']}")])
+        text += f"{i}. ✨ *{t['title'][:30]}*\n   👥 {t['attempts']} {word} | {status}\n   📅 {t['created_at'][:10]}\n\n"
+        keyboard.append([InlineKeyboardButton(f"✨ {t['title'][:30]} | {t['attempts']} 👥", callback_data=f"mytest_{t['id']}")])
     
     text += "👇 *Выбери тест чтобы посмотреть:*"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -1891,19 +1892,19 @@ async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     status = "🔥 СУПЕР-ПОПУЛЯРНЫЙ!" if len(attempts) >= 10 else "⭐ ПОПУЛЯРНЫЙ!" if len(attempts) >= 5 else "🌸 НАБИРАЕТ ПОПУЛЯРНОСТЬ" if len(attempts) >= 2 else "🆕 ЖДЁТ ПОДРУГ"
     
-    text = f"📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    text += f"📊 *СТАТУС ТЕСТА:* {status}\n\n"
-    text += f"👥 Прошли: {len(attempts)} {decline_friend_word(len(attempts))}\n"
-    text += f"🎯 Средний результат: {avg_score:.0f}%\n"
+    text = f"✨ *{test['title']}* ✨\n\n"
+    text += f"{status}\n\n"
+    text += f"👥 *{len(attempts)}* {decline_friend_word(len(attempts))} прошли тест\n"
+    text += f"🎯 Средний результат: *{avg_score:.0f}%*\n"
     if attempts:
-        text += f"👑 Лучший результат: {max_score:.0f}%\n"
-    text += f"❓ Вопросов в тесте: {len(test['questions'])}\n"
+        text += f"👑 Лучший результат: *{max_score:.0f}%*\n"
+    text += f"💭 Вопросов: *{len(test['questions'])}*\n"
     if test.get('greeting_file_id'):
-        text += "🎬 Поздравление: ЕСТЬ ✨\n"
+        text += "🎬 Видео-поздравление: *есть* ✨\n"
     if test.get('question_photos') and test['question_photos'] != '{}':
         photos_count = len(json.loads(test['question_photos']))
-        text += f"📸 Фото в тесте: {photos_count}\n"
-    text += "\n👇 *Что хочешь сделать с тестом?*"
+        text += f"📸 Фото: *{photos_count}*\n"
+    text += "\n💕 *Что хочешь сделать с тестом?*"
     
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
 
@@ -2066,9 +2067,21 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 data['current_options'].append(option_text)
                 options_list = "\n".join([f"{i+1}. {o}" for i, o in enumerate(data['current_options'])])
                 if len(data['current_options']) >= MAX_OPTIONS:
-                    await update.message.reply_text(f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n📋 *Твои варианты:*\n{options_list}\n\n🎯 *Достигнут максимум!* Нажми «✅ Готово» чтобы продолжить.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                    await update.message.reply_text(
+                        f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n"
+                        f"📋 *Твои варианты:*\n{options_list}\n\n"
+                        f"🎯 *Достигнут максимум!* Нажми «✅ Готово» чтобы продолжить.",
+                        parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard()
+                    )
                 else:
-                    await update.message.reply_text(f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n📋 *Твои варианты:*\n{options_list}\n\n➕ *Можешь добавить ещё или нажать «Готово»*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                    data['waiting_for_option'] = True
+                    await update.message.reply_text(
+                        f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n"
+                        f"📋 *Твои варианты:*\n{options_list}\n\n"
+                        f"✏️ *Напиши вариант №{len(data['current_options']) + 1}:*\n\n"
+                        f"💡 *Или нажми кнопку:*",
+                        parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard()
+                    )
             else:
                 await handle_create_test(update, context)
 
@@ -2455,7 +2468,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.answer()
 
-# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+# === ВСПОМАГАТЕЛЬНЫЕ ФУНКЦИИ ===
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2548,7 +2561,7 @@ async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['current_question_index'] = 0
     data['_pending_media'] = {'file_id': file_id, 'file_type': greeting_type, 'file_size': file_size, 'duration': duration}
     
-    await update.message.reply_text(f"✅ *Поздравление сохранено!* ({file_size/1024:.0f} KB, {duration:.0f} сек)\n\n✨ *Приступаем к вопросам!* ✨", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
+    await update.message.reply_text("✅ *Поздравление сохранено!*\n\n✨ *Приступаем к вопросам!* ✨", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
     await show_question_for_selection(update, context)
 
 async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
