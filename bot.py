@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 9.5 — ПОЛНАЯ ВЕРСИЯ С АНТИСПАМОМ, АНАЛИТИКОЙ, МОНИТОРИНГОМ И РАССЫЛКАМИ
+Версия: 9.5 — БЕЗ FLASK, ТОЛЬКО POLLING
 """
 
 import logging
@@ -20,7 +20,6 @@ import platform
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
-from flask import Flask, request, jsonify
 import yookassa
 from yookassa import Payment, Configuration
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardButton, InlineKeyboardMarkup
@@ -43,7 +42,6 @@ FREE_TESTS_LIMIT = 5
 MAX_QUESTIONS = 10
 MAX_OPTIONS = 4
 ADMIN_ID = 710623393
-FLASK_PORT = 5000
 BOT_START_TIME = time.time()
 
 # ЮKassa настройки
@@ -62,63 +60,6 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
     logger.warning("psutil не установлен. Мониторинг сервера будет недоступен")
-
-# === FLASK ПРИЛОЖЕНИЕ ===
-flask_app = Flask(__name__)
-bot_application = None
-
-@flask_app.route('/')
-def index():
-    return "PodrugaTestBot — работает! ✨"
-
-@flask_app.route('/webhook/yookassa', methods=['POST'])
-def yookassa_webhook():
-    """Обработчик вебхуков от ЮKassa"""
-    try:
-        event = request.json
-        if not event:
-            return jsonify({"status": "error", "message": "No data"}), 400
-        
-        event_type = event.get('event')
-        payment_data = event.get('object', {})
-        
-        logger.info(f"📨 Получен вебхук ЮKassa: {event_type}")
-        
-        if event_type == 'payment.succeeded':
-            payment_id = payment_data.get('id')
-            metadata = payment_data.get('metadata', {})
-            user_id = metadata.get('user_id')
-            days = metadata.get('days', 30)
-            
-            logger.info(f"✅ Платёж {payment_id} успешен! Пользователь: {user_id}, дней: {days}")
-            
-            if user_id:
-                give_premium(int(user_id), int(days))
-                
-                if bot_application:
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(
-                                bot_application.bot.send_message(
-                                    chat_id=int(user_id),
-                                    text=f"🎉✨ *ОПЛАТА ПРОШЛА!* ✨🎉\n\n💎 *ПРЕМИУМ активирован на {days} дней!*\n\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\nСпасибо за покупку! 💕",
-                                    parse_mode=ParseMode.MARKDOWN
-                                )
-                            )
-                    except Exception as e:
-                        logger.error(f"Не удалось отправить уведомление: {e}")
-        
-        return jsonify({"status": "ok"}), 200
-        
-    except Exception as e:
-        logger.error(f"Ошибка обработки вебхука: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-def run_flask():
-    """Запуск Flask в отдельном потоке"""
-    logger.info(f"🌐 Flask запущен на порту {FLASK_PORT}")
-    flask_app.run(host='0.0.0.0', port=FLASK_PORT, debug=False, use_reloader=False)
 
 # === СКЛОНЕНИЕ СЛОВ ===
 def decline_word(number, word1, word2, word3):
@@ -290,15 +231,6 @@ class AntiSpam:
         self._warnings[user_id] = 0
         self._warning_timestamps[user_id] = []
     
-    def get_user_status(self, user_id: int) -> dict:
-        is_blocked = user_id in self._blocked_users
-        block_remaining = max(0, self._blocked_until.get(user_id, 0) - time.time()) if is_blocked else 0
-        return {
-            'is_blocked': is_blocked,
-            'block_remaining': int(block_remaining),
-            'warnings': self._warnings.get(user_id, 0)
-        }
-    
     def periodic_cleanup(self):
         current_time = time.time()
         for user_id in list(self._actions.keys()):
@@ -310,18 +242,6 @@ class AntiSpam:
                 ]
             if not any(self._actions[user_id].values()):
                 del self._actions[user_id]
-        
-        for user_id in list(self._blocked_users):
-            if current_time >= self._blocked_until.get(user_id, 0):
-                self.unblock_user(user_id)
-        
-        for user_id in list(self._warnings.keys()):
-            self._warning_timestamps[user_id] = [
-                t for t in self._warning_timestamps.get(user_id, [])
-                if current_time - t < self.warning_reset_time
-            ]
-            if not self._warning_timestamps[user_id]:
-                self._warnings[user_id] = 0
 
 antispam = AntiSpam()
 
@@ -393,41 +313,22 @@ class MediaManager:
             viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
         
-        c.execute('CREATE INDEX IF NOT EXISTS idx_media_user ON media_tracking(user_id)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_media_test ON media_tracking(test_id)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_media_valid ON media_tracking(is_valid)')
-        
         conn.commit()
         conn.close()
     
     def validate_media(self, file_id: str, file_type: str, file_size: int = 0, duration: float = 0) -> dict:
         if file_size > self.max_greeting_size_mb * 1024 * 1024:
             return {'valid': False, 'reason': f'Файл слишком большой (> {self.max_greeting_size_mb} MB)'}
-        
         if file_type in ('voice', 'video') and duration > self.max_greeting_duration_sec:
             return {'valid': False, 'reason': f'Слишком длинное (> {self.max_greeting_duration_sec} сек)'}
-        
         return {'valid': True, 'reason': 'ok'}
     
     def track_media(self, file_id: str, file_type: str, user_id: int, test_id: int = None, file_size: int = 0, duration: float = 0) -> bool:
         conn = self._get_db()
         c = conn.cursor()
-        
         try:
-            c.execute('SELECT id FROM media_tracking WHERE file_id = ? AND user_id = ?', (file_id, user_id))
-            existing = c.fetchone()
-            
-            if existing:
-                c.execute('UPDATE media_tracking SET is_valid = 1, file_size_bytes = ?, duration_seconds = ? WHERE file_id = ? AND user_id = ?',
-                         (file_size, duration, file_id, user_id))
-            else:
-                c.execute('SELECT COUNT(*) as count FROM media_tracking WHERE user_id = ? AND is_valid = 1', (user_id,))
-                if c.fetchone()['count'] >= self.max_total_media_per_user:
-                    self._cleanup_old_media_for_user(user_id)
-                
-                c.execute('INSERT INTO media_tracking (file_id, file_type, test_id, user_id, file_size_bytes, duration_seconds) VALUES (?, ?, ?, ?, ?, ?)',
-                         (file_id, file_type, test_id, user_id, file_size, duration))
-            
+            c.execute('INSERT INTO media_tracking (file_id, file_type, test_id, user_id, file_size_bytes, duration_seconds) VALUES (?, ?, ?, ?, ?, ?)',
+                     (file_id, file_type, test_id, user_id, file_size, duration))
             conn.commit()
             return True
         except Exception as e:
@@ -439,82 +340,26 @@ class MediaManager:
     def mark_as_viewed(self, file_id: str, viewer_id: int, test_id: int = None):
         conn = self._get_db()
         c = conn.cursor()
-        
         try:
             c.execute('UPDATE media_tracking SET views_count = views_count + 1, last_viewed_at = CURRENT_TIMESTAMP WHERE file_id = ?', (file_id,))
             c.execute('INSERT INTO media_views (file_id, viewer_id, test_id) VALUES (?, ?, ?)', (file_id, viewer_id, test_id))
             conn.commit()
-            self._check_expired_media(file_id)
         except Exception as e:
             logger.error(f"Ошибка отметки просмотра: {e}")
         finally:
             conn.close()
     
-    def _check_expired_media(self, file_id: str):
-        conn = self._get_db()
-        c = conn.cursor()
-        
-        c.execute('''SELECT m.*, t.id as test_exists FROM media_tracking m
-                     LEFT JOIN tests t ON m.test_id = t.id WHERE m.file_id = ?''', (file_id,))
-        media = c.fetchone()
-        
-        if not media:
-            conn.close()
-            return
-        
-        should_invalidate = False
-        
-        if media['test_id'] and not media['test_exists']:
-            should_invalidate = True
-        
-        if media['views_count'] >= 2 and media['last_viewed_at']:
-            try:
-                last_viewed = datetime.fromisoformat(media['last_viewed_at'].replace('Z', '+00:00'))
-                if datetime.now(last_viewed.tzinfo) - last_viewed > timedelta(hours=24):
-                    should_invalidate = True
-            except:
-                pass
-        
-        if should_invalidate:
-            c.execute('UPDATE media_tracking SET is_valid = 0 WHERE file_id = ?', (file_id,))
-            conn.commit()
-        
-        conn.close()
-    
-    def _cleanup_old_media_for_user(self, user_id: int) -> int:
-        conn = self._get_db()
-        c = conn.cursor()
-        
-        c.execute('''UPDATE media_tracking SET is_valid = 0 WHERE user_id = ? AND (
-            is_valid = 0 OR
-            (views_count >= 2 AND last_viewed_at < datetime('now', '-24 hours')) OR
-            (views_count = 0 AND created_at < datetime('now', '-7 days')) OR
-            (views_count = 1 AND last_viewed_at < datetime('now', '-3 days'))
-        )''', (user_id,))
-        
-        cleaned = c.rowcount
-        conn.commit()
-        conn.close()
-        return cleaned
-    
     def get_media_stats(self, user_id: int = None) -> dict:
         conn = self._get_db()
         c = conn.cursor()
-        
         stats = {'total_media': 0, 'active_media': 0, 'total_size_bytes': 0, 'total_views': 0, 'by_type': {}}
         
-        where_clause = "WHERE user_id = ?" if user_id else ""
-        params = (user_id,) if user_id else ()
-        
-        c.execute(f'SELECT COUNT(*) FROM media_tracking {where_clause}', params)
+        c.execute('SELECT COUNT(*) FROM media_tracking')
         stats['total_media'] = c.fetchone()[0]
-        
-        c.execute(f'SELECT COUNT(*) FROM media_tracking WHERE is_valid = 1 {("AND " + where_clause[6:]) if where_clause else ""}', params if where_clause else ())
+        c.execute('SELECT COUNT(*) FROM media_tracking WHERE is_valid = 1')
         stats['active_media'] = c.fetchone()[0]
         
-        c.execute(f'''SELECT file_type, COUNT(*) as count, SUM(file_size_bytes) as size, SUM(views_count) as views
-                     FROM media_tracking {where_clause} GROUP BY file_type''', params)
-        
+        c.execute('SELECT file_type, COUNT(*) as count, SUM(file_size_bytes) as size, SUM(views_count) as views FROM media_tracking GROUP BY file_type')
         for row in c.fetchall():
             stats['by_type'][row['file_type']] = {'count': row['count'], 'size_bytes': row['size'] or 0, 'views': row['views'] or 0}
             stats['total_size_bytes'] += (row['size'] or 0)
@@ -537,12 +382,9 @@ class MediaManager:
         cleaned_orphaned = c.rowcount
         
         conn.commit()
-        c.execute('SELECT COUNT(*) FROM media_tracking WHERE is_valid = 1')
-        active = c.fetchone()[0]
         conn.close()
         
         return {
-            'active_media': active,
             'cleaned_inactive': cleaned_inactive,
             'cleaned_viewed': cleaned_viewed,
             'cleaned_orphaned': cleaned_orphaned,
@@ -555,7 +397,6 @@ media_manager = MediaManager()
 class BroadcastManager:
     def __init__(self, db_name: str = 'bot_simple.db'):
         self.db_name = db_name
-        self.active_broadcasts = {}
     
     def _get_db(self):
         conn = sqlite3.connect(self.db_name, timeout=30)
@@ -575,7 +416,6 @@ class BroadcastManager:
         
         c.execute('SELECT user_id FROM users')
         users = c.fetchall()
-        
         for user in users:
             c.execute('INSERT INTO broadcast_messages (broadcast_id, user_id, status) VALUES (?, ?, ?)',
                      (broadcast_id, user['user_id'], 'sent'))
@@ -587,20 +427,15 @@ class BroadcastManager:
     def update_message_status(self, broadcast_id: int, user_id: int, status: str, message_id: int = None, error: str = None):
         conn = self._get_db()
         c = conn.cursor()
-        
         update_fields = ['status = ?']
         params = [status]
-        
         if message_id:
             update_fields.append('message_id = ?')
             params.append(message_id)
-        
         if error:
             update_fields.append('error_text = ?')
             params.append(error)
-        
         params.extend([broadcast_id, user_id])
-        
         c.execute(f'UPDATE broadcast_messages SET {", ".join(update_fields)} WHERE broadcast_id = ? AND user_id = ?', params)
         conn.commit()
         conn.close()
@@ -608,7 +443,6 @@ class BroadcastManager:
     def update_broadcast_stats(self, broadcast_id: int):
         conn = self._get_db()
         c = conn.cursor()
-        
         c.execute('''UPDATE broadcasts SET
             sent_count = (SELECT COUNT(*) FROM broadcast_messages WHERE broadcast_id = ? AND status IN ('sent', 'delivered', 'read')),
             delivered_count = (SELECT COUNT(*) FROM broadcast_messages WHERE broadcast_id = ? AND status IN ('delivered', 'read')),
@@ -616,7 +450,6 @@ class BroadcastManager:
             failed_count = (SELECT COUNT(*) FROM broadcast_messages WHERE broadcast_id = ? AND status = 'failed'),
             blocked_count = (SELECT COUNT(*) FROM broadcast_messages WHERE broadcast_id = ? AND status = 'blocked')
             WHERE id = ?''', (broadcast_id,) * 6)
-        
         conn.commit()
         conn.close()
     
@@ -626,21 +459,17 @@ class BroadcastManager:
         c.execute('UPDATE broadcasts SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?', ('completed', broadcast_id))
         conn.commit()
         conn.close()
-        self.active_broadcasts.pop(broadcast_id, None)
     
     def get_broadcast_stats(self, broadcast_id: int) -> dict:
         conn = self._get_db()
         c = conn.cursor()
-        
         c.execute('SELECT * FROM broadcasts WHERE id = ?', (broadcast_id,))
         broadcast = c.fetchone()
-        
         if not broadcast:
             conn.close()
             return None
         
         stats = dict(broadcast)
-        
         c.execute('''SELECT COUNT(*) as total,
                      SUM(CASE WHEN status IN ('sent', 'delivered', 'read') THEN 1 ELSE 0 END) as sent,
                      SUM(CASE WHEN status IN ('delivered', 'read') THEN 1 ELSE 0 END) as delivered,
@@ -844,32 +673,32 @@ def get_friendship_status(score):
 def get_friendship_prediction(score, name):
     if score >= 90:
         predictions = [
-            f"{name} — твоя родственная душа! Вы понимаете друг друга с полуслова. Береги эту дружбу, она особенная!",
+            f"{name} — твоя родственная душа! Вы понимаете друг друга с полуслова.",
             f"{name} знает тебя лучше всех! Вы как сёстры — такие друзья встречаются раз в жизни.",
             f"{name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга!"
         ]
     elif score >= 70:
         predictions = [
-            f"{name} очень хорошо тебя знает! Вы близкие подруги, и ваша дружба только крепнет.",
+            f"{name} очень хорошо тебя знает! Вы близкие подруги.",
             f"{name} понимает тебя почти во всём. Ещё немного — и вы станете лучшими подругами!",
             f"Вы с {name} на одной волне! Продолжайте узнавать друг друга ещё лучше."
         ]
     elif score >= 50:
         predictions = [
-            f"{name} знает тебя неплохо, но есть куда расти! Проводите больше времени вместе.",
-            f"Ваша дружба с {name} только расцветает! Узнавайте друг друга глубже.",
+            f"{name} знает тебя неплохо, но есть куда расти!",
+            f"Ваша дружба с {name} только расцветает!",
             f"{name} уже многое о тебе знает. Ещё немного — и вы станете ближе!"
         ]
     elif score >= 30:
         predictions = [
             f"{name} только начинает тебя узнавать. Это отличный повод пообщаться побольше!",
-            f"Вы с {name} на пути к настоящей дружбе. Не останавливайтесь!",
+            f"Вы с {name} на пути к настоящей дружбе.",
             f"{name} знает о тебе основы. Расскажи ей о себе побольше!"
         ]
     else:
         predictions = [
-            f"{name} пока плохо тебя знает. Но это только начало вашей дружбы!",
-            f"{name} ещё предстоит узнать тебя получше. Устройте совместную прогулку!",
+            f"{name} пока плохо тебя знает. Но это только начало!",
+            f"{name} ещё предстоит узнать тебя получше.",
             f"Ваша дружба с {name} только зарождается. Впереди много интересного!"
         ]
     return random.choice(predictions)
@@ -918,20 +747,16 @@ def init_db():
     
     try:
         c.execute('ALTER TABLE tests ADD COLUMN greeting_type TEXT')
-    except:
-        pass
+    except: pass
     try:
         c.execute('ALTER TABLE tests ADD COLUMN greeting_file_id TEXT')
-    except:
-        pass
+    except: pass
     try:
         c.execute('ALTER TABLE tests ADD COLUMN answer_comments TEXT')
-    except:
-        pass
+    except: pass
     try:
         c.execute('ALTER TABLE tests ADD COLUMN question_photos TEXT')
-    except:
-        pass
+    except: pass
     
     c.execute('''CREATE TABLE IF NOT EXISTS attempts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -968,9 +793,6 @@ def init_db():
         status TEXT DEFAULT 'pending',
         message_id INTEGER,
         error_text TEXT,
-        sent_at TIMESTAMP,
-        delivered_at TIMESTAMP,
-        read_at TIMESTAMP,
         FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id)
     )''')
     
@@ -1123,14 +945,6 @@ def add_tests_to_user(user_id, count):
     conn.close()
     return True
 
-def get_all_users():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('SELECT * FROM users')
-    users = [dict(row) for row in c.fetchall()]
-    conn.close()
-    return users
-
 # === ДИПЛОМ-АНАЛИЗ ===
 async def generate_friendship_analysis(user_name, creator_name, test_title, score, status, prediction, categories_stats):
     width, height = 1600, 1300
@@ -1200,12 +1014,7 @@ async def generate_friendship_analysis(user_name, creator_name, test_title, scor
     
     y = 460
     subtitle = "ОБЩИЙ РЕЗУЛЬТАТ"
-    bbox = draw.textbbox((0, 0), subtitle, font=font_small)
-    sub_width = bbox[2] - bbox[0]
-    draw.text((width//2 - sub_width//2, y), subtitle, fill=gray, font=font_small)
-    
-    y = 510
-    draw.rectangle([width//5, y, width*4//5, y+3], fill=pink+'60')
+    draw.text((width//2 - 200, y), subtitle, fill=gray, font=font_small)
     
     y = 570
     draw.text((80, y), "ПО КАТЕГОРИЯМ:", fill=light_gray, font=font_heading)
@@ -1227,12 +1036,8 @@ async def generate_friendship_analysis(user_name, creator_name, test_title, scor
                 draw.rounded_rectangle([bar_x, bar_y, bar_x+fill_width, bar_y+28], radius=14, fill=bar_color)
             
             percent_text = f"{cat_score:.0f}%"
-            bbox = draw.textbbox((0, 0), percent_text, font=font_text)
             draw.text((bar_x + bar_width + 20, y), percent_text, fill=white, font=font_text)
             y += 75
-    
-    y += 20
-    draw.rectangle([width//5, y, width*4//5, y+3], fill=pink+'60')
     
     y += 60
     draw.text((80, y), "ВЕРДИКТ:", fill=light_gray, font=font_heading)
@@ -1267,14 +1072,12 @@ async def generate_friendship_analysis(user_name, creator_name, test_title, scor
     
     cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
     cert_text = f"ID: {cert_id}"
-    bbox = draw.textbbox((0, 0), cert_text, font=font_small)
-    cert_width = bbox[2] - bbox[0]
-    draw.text((width-50-cert_width, footer_y), cert_text, fill=gray, font=font_small)
+    draw.text((width-200, footer_y), cert_text, fill=gray, font=font_small)
     
     stars = ["★", "★", "★", "★"]
-    positions = [(40, 40), (width-40, 40), (40, height-40), (width-40, height-40)]
+    positions = [(40, 40), (width-80, 40), (40, height-80), (width-80, height-80)]
     for i, (x, y_pos) in enumerate(positions):
-        draw.text((x-15, y_pos-15), stars[i], fill=gold, font=font_title)
+        draw.text((x, y_pos), stars[i], fill=gold, font=font_title)
     
     img_byte_arr = io.BytesIO()
     image.save(img_byte_arr, format='PNG', quality=95)
@@ -1335,14 +1138,14 @@ def get_test_actions_keyboard(test_id):
          InlineKeyboardButton("📤 Поделиться", callback_data=f"share_{test_id}")],
         [InlineKeyboardButton("📊 Ответы подруг", callback_data=f"answers_{test_id}"),
          InlineKeyboardButton("⚔️ Битва подруг", callback_data=f"battle_{test_id}")],
-        [InlineKeyboardButton("📈 Статистика дружбы", callback_data=f"stats_friendship_{test_id}"),
+        [InlineKeyboardButton("📈 Статистика", callback_data=f"stats_friendship_{test_id}"),
          InlineKeyboardButton("🗑 Удалить", callback_data=f"delete_{test_id}")]
     ])
 
 def get_share_keyboard(test_id):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("👭 Поделиться с подругой", 
-            switch_inline_query=f"💕 Привет! Пройди тест обо мне и узнай, насколько хорошо ты меня знаешь! 💕\n\n👉 https://t.me/{BOT_USERNAME}?start=test_{test_id}")]
+            switch_inline_query=f"💕 Пройди тест обо мне! 👉 https://t.me/{BOT_USERNAME}?start=test_{test_id}")]
     ])
 
 def get_premium_keyboard():
@@ -1365,10 +1168,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if test:
             creator = get_user(test['creator_id'])
             creator_name = creator.get('first_name', 'Подружка') if creator else 'Подружка'
-            creator_username = f"(@{creator.get('username')})" if creator and creator.get('username') else ''
             
             text = (f"🌸✨ ПРИВЕТ, {user.first_name}! ✨🌸\n\n"
-                    f"💕 *{creator_name}* {creator_username} приглашает тебя пройти тест!\n\n"
+                    f"💕 *{creator_name}* приглашает тебя пройти тест!\n\n"
                     f"📝 *{test['title']}*\n\n"
                     f"👇 Нажми на кнопку и начни!")
             
@@ -1387,31 +1189,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_prem:
         text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
                 f"Создай тест о себе и отправь подружке!\n"
-                f"Узнайте, насколько хорошо вы друг друга знаете 💕\n\n"
                 f"💎 *Статус:* ПРЕМИУМ ✨\n"
                 f"♾️ *Безлимитные тесты*\n"
-                f"📊 *Отправлено:* {tests_created} тестов\n\n"
-                f"Выбирай действие в меню 👇")
+                f"📊 *Отправлено:* {tests_created} тестов")
     else:
         available = get_available_tests_count(user.id)
-        if available > 0:
-            word = decline_word(available, "тест", "теста", "тестов")
-            tests_info = f"📊 *Осталось:* {available} {word}"
-        else:
-            tests_info = f"⚠️ *Лимит исчерпан!* Купи Премиум для продолжения"
-        
+        word = decline_word(available, "тест", "теста", "тестов")
+        tests_info = f"📊 *Осталось:* {available} {word}" if available > 0 else "⚠️ *Лимит исчерпан!*"
         text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
-                f"Создай тест о себе и отправь подружке!\n"
-                f"Узнайте, насколько хорошо вы друг друга знаете 💕\n\n"
+                f"Создай тест о себе и отправь подружке!\n\n"
                 f"🎁 *Бесплатно:* {FREE_TESTS_LIMIT} тестов\n"
                 f"{tests_info}\n\n"
-                f"💎 Хочешь безлимит и красивый диплом? Жми «💎 Премиум»\n\n"
-                f"Выбирай действие в меню 👇")
+                f"💎 Хочешь безлимит? Жми «💎 Премиум»")
     
-    try:
-        await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
-    except Exception as e:
-        logger.warning(f"Не удалось отправить приветствие: {e}")
+    await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
 
 # === АДМИН-ПАНЕЛЬ ===
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1442,13 +1233,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     c.execute('SELECT COUNT(*) FROM users WHERE created_at >= ?', (month_ago,))
     new_month = c.fetchone()[0]
     
-    c.execute('''SELECT COUNT(DISTINCT user_id) FROM (
-        SELECT user_id FROM users WHERE created_at >= ?
-        UNION SELECT creator_id FROM tests WHERE created_at >= ?
-        UNION SELECT friend_id FROM attempts WHERE completed_at >= ?
-    )''', (week_ago, week_ago, week_ago))
-    active_users = c.fetchone()[0]
-    
     c.execute('SELECT COUNT(*) FROM users WHERE premium_until > ?', (today,))
     premium_active = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM users WHERE premium_until IS NOT NULL')
@@ -1461,8 +1245,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     c.execute('SELECT COUNT(*) FROM attempts')
     total_attempts = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM attempts WHERE completed_at >= ?', (month_ago,))
-    attempts_month = c.fetchone()[0]
     c.execute('SELECT AVG(score) FROM attempts')
     avg_score = c.fetchone()[0] or 0
     
@@ -1470,54 +1252,45 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = f"""
 📊 *СТАТИСТИКА БОТА*
-📅 {today}
 ━━━━━━━━━━━━━━━━━━
 
-👥 *ПОЛЬЗОВАТЕЛИ*
+👥 *Пользователи*
 ├ Всего: *{total_users}*
-├ Новых сегодня: *+{new_today}*
-├ Новых за неделю: *+{new_week}*
-├ Новых за месяц: *+{new_month}*
-└ Активных (7 дн): *{active_users}*
+├ Сегодня: *+{new_today}*
+├ За неделю: *+{new_week}*
+└ За месяц: *+{new_month}*
 
-💎 *ПРЕМИУМ*
+💎 *Премиум*
 ├ Активных: *{premium_active}*
-├ Всего покупали: *{premium_total}*
+├ Всего: *{premium_total}*
 └ Конверсия: *{round(premium_total/max(total_users,1)*100, 1)}%*
 
-📝 *ТЕСТЫ*
+📝 *Тесты*
 ├ Всего: *{total_tests}*
 └ За месяц: *+{tests_month}*
 
-🎯 *ПРОХОЖДЕНИЯ*
+🎯 *Прохождения*
 ├ Всего: *{total_attempts}*
-├ За месяц: *+{attempts_month}*
-└ Средний результат: *{avg_score:.1f}%*
+└ Средний балл: *{avg_score:.1f}%*
 """
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Обновить", callback_data="admin_refresh_stats")],
-        [InlineKeyboardButton("📊 Детальная статистика", callback_data="admin_detailed_stats")],
         [InlineKeyboardButton("📈 Воронка", callback_data="admin_funnel")],
-        [InlineKeyboardButton("👥 Когорты", callback_data="admin_cohorts")],
-        [InlineKeyboardButton("📋 Пользователи", callback_data="admin_list_users")],
         [InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")]
     ])
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
 
-# === СЕРВЕРНАЯ СТАТИСТИКА ===
 async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
         return
     
-    loading_msg = await update.message.reply_text("🖥 *Собираю статистику...*", parse_mode=ParseMode.MARKDOWN)
-    
     stats = get_server_stats()
     
     if 'error' in stats:
-        await loading_msg.edit_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
         return
     
     cpu_emoji = get_server_status_emoji(stats['cpu']['percent'])
@@ -1525,28 +1298,25 @@ async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAU
     disk_emoji = get_server_status_emoji(stats['disk']['percent'], (70, 90))
     
     text = f"""
-🖥 *СТАТИСТИКА СЕРВЕРА*
-📅 {stats['timestamp']}
+🖥 *СЕРВЕР*
 ⏱ Аптайм: *{stats['uptime']}*
 
-💻 *Система*
-├ ОС: `{stats['system']}`
-├ Python: `{stats['python']}`
-└ Ядер CPU: *{stats['cpu']['cores']}*
+💻 Система: `{stats['system']}`
+🐍 Python: `{stats['python']}`
+🔢 Ядер CPU: *{stats['cpu']['cores']}*
 
-📊 *Нагрузка*
+📊 Нагрузка:
 ├ CPU: {cpu_emoji} *{stats['cpu']['percent']:.1f}%*
 ├ RAM: {mem_emoji} *{stats['memory']['percent']:.1f}%*
 │   └ {stats['memory']['used_gb']}/{stats['memory']['total_gb']} GB
 └ Диск: {disk_emoji} *{stats['disk']['percent']:.1f}%*
-    └ {stats['disk']['used_gb']}/{stats['disk']['total_gb']} GB
 
-🤖 *Бот*
+🤖 Бот:
 ├ RAM: *{stats['bot_process']['memory_mb']} MB*
 ├ CPU: *{stats['bot_process']['cpu_percent']:.1f}%*
 └ Потоков: *{stats['bot_process']['threads']}*
 
-💡 {'⚠️ Высокая нагрузка!' if stats['cpu']['percent'] > 80 or stats['memory']['percent'] > 85 else '⚠️ Заканчивается место на диске!' if stats['disk']['percent'] > 90 else '✅ Всё работает стабильно'}
+💡 {'⚠️ Высокая нагрузка!' if stats['cpu']['percent'] > 80 else '✅ Стабильно'}
 """
     
     keyboard = InlineKeyboardMarkup([
@@ -1554,26 +1324,16 @@ async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAU
         [InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")]
     ])
     
-    await loading_msg.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
 
-# === АНТИСПАМ СТАТИСТИКА ===
 async def admin_antispam_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
         return
     
-    text = "🛡️ *АНТИСПАМ СТАТИСТИКА*\n\n"
-    text += f"🚫 Заблокировано пользователей: *{len(antispam._blocked_users)}*\n"
-    text += f"⚠️ С предупреждениями: *{len(antispam._warnings)}*\n"
-    
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Обновить", callback_data="antispam_refresh")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")]
-    ])
-    
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    text = f"🛡️ *АНТИСПАМ*\n\n🚫 Заблокировано: *{len(antispam._blocked_users)}*\n⚠️ С предупреждениями: *{len(antispam._warnings)}*"
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
-# === МЕДИА СТАТИСТИКА ===
 async def admin_media_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id != ADMIN_ID:
@@ -1583,38 +1343,22 @@ async def admin_media_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_size_mb = round(stats['total_size_bytes'] / (1024**2), 1)
     
     text = f"""
-🎬 *СТАТИСТИКА МЕДИА*
+🎬 *МЕДИА*
 
-📁 *Общая*
-├ Всего записей: *{stats['total_media']}*
-├ Активных: *{stats['active_media']}*
-├ Общий размер: *{total_size_mb} MB*
-└ Просмотров: *{stats['total_views']}*
+📁 Всего: *{stats['total_media']}* | Активных: *{stats['active_media']}*
+💾 Размер: *{total_size_mb} MB*
+👁 Просмотров: *{stats['total_views']}*
 
-📊 *По типам*
+📊 По типам:
 """
-    
     type_names = {'voice': '🎤 Голосовые', 'video': '🎥 Видео', 'photo': '📸 Фото'}
     for file_type, type_stats in stats['by_type'].items():
         type_name = type_names.get(file_type, file_type)
         size_mb = round(type_stats['size_bytes'] / (1024**2), 2)
-        text += f"""
-*{type_name}*
-├ Количество: *{type_stats['count']}*
-├ Размер: *{size_mb} MB*
-└ Просмотров: *{type_stats['views']}*
-"""
-    
-    text += f"""
-💡 *Автоочистка*
-├ Непросмотренные > 7 дней: удаляются
-├ Просмотренные > 24 часа: удаляются
-└ Макс медиа на пользователя: *{media_manager.max_total_media_per_user}*
-"""
+        text += f"├ {type_name}: *{type_stats['count']}* ({size_mb} MB)\n"
     
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🧹 Принудительная очистка", callback_data="media_force_cleanup")],
-        [InlineKeyboardButton("🔄 Обновить", callback_data="admin_media_stats")],
+        [InlineKeyboardButton("🧹 Очистить", callback_data="media_force_cleanup")],
         [InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")]
     ])
     
@@ -1632,28 +1376,15 @@ async def admin_broadcast_start(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['creating_broadcast'] = True
     
     recent = broadcast_manager.get_recent_broadcasts(3)
-    
-    text = "📢 *РАССЫЛКА СООБЩЕНИЙ*\n\n"
+    text = "📢 *РАССЫЛКА*\n\n"
     
     if recent:
-        text += "📊 *Последние рассылки:*\n"
+        text += "*Последние:*\n"
         for b in recent:
-            status_emoji = {'sending': '🔄', 'completed': '✅', 'cancelled': '❌'}.get(b['status'], '📤')
-            text += f"{status_emoji} *{b['created_at'][:16]}*\n"
-            text += f"   ├ Всего: {b['total_users']} | Отправлено: {b['sent_count']}\n"
-            text += f"   └ Доставлено: {b['delivered_count']} | Прочитано: {b['read_count']}\n"
+            text += f"• #{b['id']}: отправлено {b['sent_count']}/{b['total_users']}\n"
         text += "\n"
     
-    text += (
-        "📝 *Отправь сообщение, которое увидят ВСЕ пользователи.*\n\n"
-        "📎 *Поддерживается:*\n"
-        "• Текст\n"
-        "• Фото с подписью\n"
-        "• Видео с подписью\n"
-        "• GIF-анимации\n\n"
-        "⚠️ *Будь осторожен!* Сообщение получат ВСЕ.\n\n"
-        "❌ *Отмена* — чтобы выйти"
-    )
+    text += "📝 Отправь сообщение для ВСЕХ пользователей.\n❌ *Отмена* — выйти"
     
     keyboard = ReplyKeyboardMarkup([["❌ Отмена", "📊 Статистика рассылок"]], resize_keyboard=True)
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
@@ -1685,7 +1416,7 @@ async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT user_id, first_name FROM users')
+    c.execute('SELECT user_id FROM users')
     users = c.fetchall()
     conn.close()
     
@@ -1693,11 +1424,7 @@ async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     broadcast_id = broadcast_manager.create_broadcast(user_id, message_data, total_users)
     
     status_msg = await update.message.reply_text(
-        f"📤 *РАССЫЛКА #{broadcast_id}*\n\n"
-        f"├ Всего пользователей: *{total_users}*\n"
-        f"├ Статус: 🔄 *Отправка...*\n"
-        f"└ Прогресс: *0/{total_users}* (0%)\n\n"
-        f"⏳ *Пожалуйста, подожди...*",
+        f"📤 *РАССЫЛКА #{broadcast_id}*\n├ Всего: *{total_users}*\n└ Прогресс: *0/{total_users}* (0%)",
         parse_mode=ParseMode.MARKDOWN
     )
     
@@ -1735,7 +1462,7 @@ async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         except Exception as e:
             error_str = str(e)
-            if "blocked" in error_str.lower() or "forbidden" in error_str.lower() or "deactivated" in error_str.lower():
+            if "blocked" in error_str.lower() or "forbidden" in error_str.lower():
                 stats['blocked'] += 1
                 broadcast_manager.update_message_status(broadcast_id, user['user_id'], 'blocked', error=error_str)
             else:
@@ -1746,14 +1473,12 @@ async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             percent = (i + 1) / total_users * 100
             try:
                 await status_msg.edit_text(
-                    f"📤 *РАССЫЛКА #{broadcast_id}*\n\n"
+                    f"📤 *РАССЫЛКА #{broadcast_id}*\n"
                     f"├ Всего: *{total_users}*\n"
                     f"├ Отправлено: *{stats['sent']}* ✅\n"
                     f"├ Заблокировали: *{stats['blocked']}* 🚫\n"
                     f"├ Ошибки: *{stats['failed']}* ❌\n"
-                    f"├ Прогресс: *{i+1}/{total_users}* ({percent:.0f}%)\n"
-                    f"└ Статус: 🔄 *Отправка...*\n\n"
-                    f"⏳ *Пожалуйста, подожди...*",
+                    f"└ Прогресс: *{i+1}/{total_users}* ({percent:.0f}%)",
                     parse_mode=ParseMode.MARKDOWN
                 )
             except:
@@ -1767,14 +1492,12 @@ async def execute_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     final_text = (
         f"✅ *РАССЫЛКА #{broadcast_id} ЗАВЕРШЕНА!*\n\n"
-        f"📊 *Статистика:*\n"
         f"├ Всего: *{total_users}*\n"
         f"├ Отправлено: *{stats['sent']}* ({percent:.1f}%)\n"
         f"├ Доставлено: *{final_stats.get('delivered_count', 0)}* ({final_stats.get('delivery_rate', 0)}%)\n"
         f"├ Прочитано: *{final_stats.get('read_count', 0)}* ({final_stats.get('read_rate', 0)}%)\n"
         f"├ Заблокировали: *{stats['blocked']}* ({final_stats.get('block_rate', 0)}%)\n"
-        f"└ Ошибки: *{stats['failed']}* ({final_stats.get('fail_rate', 0)}%)\n\n"
-        f"💡 *Охват:* {percent:.1f}%"
+        f"└ Ошибки: *{stats['failed']}* ({final_stats.get('fail_rate', 0)}%)"
     )
     
     await status_msg.edit_text(final_text, parse_mode=ParseMode.MARKDOWN)
@@ -1796,28 +1519,17 @@ async def broadcast_stats_handler(update: Update, context: ContextTypes.DEFAULT_
     
     for b in broadcasts:
         total = b['total_users'] or 1
-        status_emoji = {'sending': '🔄', 'completed': '✅', 'cancelled': '❌'}.get(b['status'], '📤')
-        
-        sent_percent = round(b['sent_count'] / total * 100, 1)
-        delivered_percent = round(b['delivered_count'] / total * 100, 1)
-        read_percent = round(b['read_count'] / total * 100, 1)
-        
+        status_emoji = {'completed': '✅', 'cancelled': '❌'}.get(b['status'], '🔄')
         text += (
             f"{status_emoji} *#{b['id']}* — {b['created_at'][:16]}\n"
-            f"├ 📤 Отправлено: *{b['sent_count']}/{total}* ({sent_percent}%)\n"
-            f"├ 📬 Доставлено: *{b['delivered_count']}* ({delivered_percent}%)\n"
-            f"├ 👁 Прочитано: *{b['read_count']}* ({read_percent}%)\n"
+            f"├ 📤 Отправлено: *{b['sent_count']}/{total}* ({round(b['sent_count']/total*100, 1)}%)\n"
+            f"├ 📬 Доставлено: *{b['delivered_count']}* ({round(b['delivered_count']/max(total,1)*100, 1)}%)\n"
+            f"├ 👁 Прочитано: *{b['read_count']}* ({round(b['read_count']/max(total,1)*100, 1)}%)\n"
             f"├ 🚫 Заблокировали: *{b['blocked_count']}*\n"
             f"└ ❌ Ошибки: *{b['failed_count']}*\n\n"
         )
     
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔍 Детально", callback_data="broadcast_detail_select")],
-        [InlineKeyboardButton("🔄 Обновить", callback_data="admin_broadcast_stats_refresh")],
-        [InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin")]
-    ])
-    
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 # === АДМИН ДЕЙСТВИЯ ===
 async def admin_give_premium_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1832,10 +1544,7 @@ async def admin_give_premium_start(update: Update, context: ContextTypes.DEFAULT
          InlineKeyboardButton("30 дней", callback_data="give_premium_30")]
     ])
     
-    await update.message.reply_text(
-        "🎁 *ПОДАРИТЬ ПРЕМИУМ*\n\nВыбери срок премиума:",
-        parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
-    )
+    await update.message.reply_text("🎁 *ПОДАРИТЬ ПРЕМИУМ*\n\nВыбери срок:", parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
     context.user_data['admin_action'] = 'give_premium'
 
 async def admin_add_tests_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1844,7 +1553,7 @@ async def admin_add_tests_start(update: Update, context: ContextTypes.DEFAULT_TY
         return
     context.user_data['admin_action'] = 'add_tests'
     await update.message.reply_text(
-        "➕ *НАЧИСЛИТЬ ТЕСТЫ*\n\nВведите username или ID и количество тестов:\nНапример: @anna 5 или 123456789 3",
+        "➕ *НАЧИСЛИТЬ ТЕСТЫ*\n\nВведите username или ID и количество:\nНапример: @anna 5",
         parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard()
     )
 
@@ -1875,15 +1584,13 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if not row:
             await update.message.reply_text(f"❌ Пользователь {target} не найден", reply_markup=get_admin_keyboard())
             del context.user_data['admin_action']
-            if 'premium_days' in context.user_data:
-                del context.user_data['premium_days']
             return
         
         give_premium(row['user_id'], days)
         day_word = decline_word(days, "день", "дня", "дней")
         await update.message.reply_text(f"✅ *{row['first_name'] or target}* получил премиум на *{days} {day_word}*! 🎉", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
         try:
-            await context.bot.send_message(chat_id=row['user_id'], text=f"🎉✨ *ПОЗДРАВЛЯЕМ!* ✨🎉\n\n💎 Вам подарен *ПРЕМИУМ* на *{days} {day_word}*!", parse_mode=ParseMode.MARKDOWN)
+            await context.bot.send_message(chat_id=row['user_id'], text=f"🎉✨ Поздравляем! Вам подарен ПРЕМИУМ на {days} {day_word}!", parse_mode=ParseMode.MARKDOWN)
         except:
             pass
         del context.user_data['admin_action']
@@ -1893,7 +1600,7 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     elif action == 'add_tests':
         parts = text.split()
         if len(parts) < 2:
-            await update.message.reply_text("❌ Введите username и количество тестов!", reply_markup=get_admin_keyboard())
+            await update.message.reply_text("❌ Введите username и количество!", reply_markup=get_admin_keyboard())
             return
         
         target = parts[0].lstrip('@')
@@ -1906,9 +1613,9 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn = get_db()
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
         else:
-            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE username = ?', (target,))
+            c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
         row = c.fetchone()
         
         if not row:
@@ -1921,11 +1628,11 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         available = get_available_tests_count(row['user_id'])
         
         await update.message.reply_text(
-            f"✅ *{row['first_name'] or target}* начислено *{count}* тестов!\n\n📊 Теперь доступно: *{available}*",
+            f"✅ *{row['first_name'] or target}* начислено *{count}* тестов!\n📊 Доступно: *{available}*",
             parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard()
         )
         try:
-            await context.bot.send_message(chat_id=row['user_id'], text=f"🎁 *ПОДАРОК!* 🎁\n\nВам начислено *+{count}* тестов!", parse_mode=ParseMode.MARKDOWN)
+            await context.bot.send_message(chat_id=row['user_id'], text=f"🎁 Вам начислено +{count} тестов!")
         except:
             pass
         conn.close()
@@ -1938,7 +1645,7 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not can_create_test(user_id):
         await update.message.reply_text(
-            f"💔 *Лимит бесплатных тестов!* 💔\n\n💎 *Купи Премиум* для безлимита!",
+            "💔 *Лимит бесплатных тестов!*\n\n💎 *Купи Премиум* для безлимита!",
             parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id)
         )
         return
@@ -1946,15 +1653,10 @@ async def create_test_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['creating_test'] = {'step': 'title'}
     
     is_prem = is_premium(user_id)
-    if is_prem:
-        tests_info = "♾️ *Премиум — безлимитные тесты*"
-    else:
-        available = get_available_tests_count(user_id)
-        word = decline_word(available, "тест", "теста", "тестов")
-        tests_info = f"📊 *Осталось тестов:* {available} {word}"
+    tests_info = "♾️ *Премиум — безлимит*" if is_prem else f"📊 *Осталось:* {get_available_tests_count(user_id)}"
     
     await update.message.reply_text(
-        f"🌸 *СОЗДАЁМ ТЕСТ*\n\n{tests_info}\n\nПридумай красивое название:\nНапример: «Насколько хорошо ты меня знаешь?»\n\n❌ *Отмена* — чтобы выйти",
+        f"🌸 *СОЗДАЁМ ТЕСТ*\n\n{tests_info}\n\nПридумай название:\n❌ *Отмена* — выйти",
         parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard()
     )
 
@@ -1972,7 +1674,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
         data['title'] = text
         data['step'] = 'group'
-        await update.message.reply_text("✨ Выбери тему для вопросов:", reply_markup=get_question_groups_keyboard())
+        await update.message.reply_text("✨ Выбери тему:", reply_markup=get_question_groups_keyboard())
     
     elif step == 'questions_count':
         try:
@@ -1992,7 +1694,7 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 [InlineKeyboardButton("⏭️ Пропустить", callback_data="greeting_skip")]
             ])
             await update.message.reply_text(
-                "🎬✨ *ДОБАВЬ ПОЗДРАВЛЕНИЕ!* ✨🎬\n\nТвоя подружка получит его после прохождения теста!\n\n👇 Выбери тип или пропусти:",
+                "🎬✨ *ДОБАВЬ ПОЗДРАВЛЕНИЕ!* ✨🎬\n\nПодружка получит его после прохождения!",
                 parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
             )
             data['step'] = 'greeting'
@@ -2019,7 +1721,7 @@ async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     if already_attempted:
-        await query.message.reply_text("💔 *Ты уже проходила этот тест!*\n\nКаждую подругу можно проверить только один раз ✨", parse_mode=ParseMode.MARKDOWN)
+        await query.message.reply_text("💔 *Ты уже проходила этот тест!*", parse_mode=ParseMode.MARKDOWN)
         return
     
     context.user_data['taking_test'] = {'test': test, 'current': 0, 'answers': []}
@@ -2031,13 +1733,7 @@ async def send_question(query, context):
     current = data['current']
     
     photos_raw = test.get('question_photos')
-    if photos_raw:
-        try:
-            photos = json.loads(photos_raw)
-        except:
-            photos = {}
-    else:
-        photos = {}
+    photos = json.loads(photos_raw) if photos_raw else {}
     
     keyboard = []
     for i, opt in enumerate(test['options'][current]):
@@ -2071,24 +1767,10 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     data['answers'].append(answer_idx)
     
-    comments_raw = test.get('answer_comments')
-    if comments_raw:
-        try:
-            comments = json.loads(comments_raw)
-        except:
-            comments = {}
-    else:
-        comments = {}
-    
-    comment = comments.get(str(current), None)
-    
     if is_correct:
         result_text = f"✅ *ПРАВИЛЬНО!*\n\nТвой ответ: *{user_answer}*"
     else:
-        result_text = f"❌ *НЕПРАВИЛЬНО*\n\nТвой ответ: *{user_answer}*\n✅ *Правильный ответ:* {correct_answer}"
-    
-    if comment:
-        result_text += f"\n\n💬 *Комментарий автора:*\n_{comment}_"
+        result_text = f"❌ *НЕПРАВИЛЬНО*\n\nТвой ответ: *{user_answer}*\n✅ *Правильно:* {correct_answer}"
     
     await query.message.reply_text(result_text, parse_mode=ParseMode.MARKDOWN)
     await asyncio.sleep(1)
@@ -2115,24 +1797,21 @@ async def finish_test(query, context):
     
     try:
         creator_id = test['creator_id']
-        notification_text = (f"🎉💖 *УРА! ТВОЙ ТЕСТ ПРОШЛИ!* 💖🎉\n\n"
-                            f"👤 *{user.first_name}* только что прошла твой тест\n"
-                            f"📝 «{test['title']}»\n🎯 *Результат:* {score:.0f}%\n"
-                            f"🏆 *Статус:* {status}\n\n"
-                            f"✨ *Зайди в «👑 Мои тесты» чтобы посмотреть ответы!* ✨")
-        await context.bot.send_message(chat_id=creator_id, text=notification_text, parse_mode=ParseMode.MARKDOWN)
-    except Exception as e:
-        logger.warning(f"Не удалось отправить уведомление: {e}")
+        await context.bot.send_message(
+            chat_id=creator_id,
+            text=f"🎉 *{user.first_name}* прошла твой тест «{test['title']}»!\n🎯 Результат: *{score:.0f}%*\n🏆 Статус: *{status}*",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except:
+        pass
     
     categories_stats = {}
     for i, q in enumerate(test['questions']):
-        category = None
+        category = "Другое"
         for cat, cat_questions in QUESTIONS.items():
             if q in cat_questions:
                 category = QUESTION_GROUPS.get(cat, cat)
                 break
-        if not category:
-            category = "Другое"
         if category not in categories_stats:
             categories_stats[category] = {'correct': 0, 'total': 0}
         categories_stats[category]['total'] += 1
@@ -2141,9 +1820,7 @@ async def finish_test(query, context):
     
     analysis_image = await generate_friendship_analysis(user.first_name, test['creator_name'], test['title'], score, status, prediction, categories_stats)
     
-    caption = (f"🎉✨ *ТЕСТ ПРОЙДЕН!* ✨🎉\n\n"
-               f"💕 *{user.first_name}*, ты просто супер!\n"
-               f"🔥 *Поделись этим анализом с {test['creator_name']}!* 🔥")
+    caption = f"🎉✨ *ТЕСТ ПРОЙДЕН!* ✨🎉\n\n💕 *{user.first_name}*, ты супер!"
     
     await query.message.reply_photo(analysis_image, caption=caption, parse_mode=ParseMode.MARKDOWN)
     
@@ -2151,23 +1828,10 @@ async def finish_test(query, context):
         await asyncio.sleep(0.5)
         try:
             if test.get('greeting_type') == 'voice':
-                await query.message.reply_voice(
-                    test['greeting_file_id'],
-                    caption=f"🎬✨ СЮРПРИЗ ОТ {test['creator_name'].upper()}! ✨🎬\n💕 Она приготовила для тебя особенное послание...",
-                    parse_mode=ParseMode.MARKDOWN
-                )
+                await query.message.reply_voice(test['greeting_file_id'])
             elif test.get('greeting_type') == 'video':
-                await query.message.reply_video(
-                    test['greeting_file_id'],
-                    caption=f"🎬✨ СЮРПРИЗ ОТ {test['creator_name'].upper()}! ✨🎬\n💕 Она приготовила для тебя особенное послание...",
-                    parse_mode=ParseMode.MARKDOWN
-                )
-            
-            media_manager.mark_as_viewed(
-                file_id=test['greeting_file_id'],
-                viewer_id=user.id,
-                test_id=test['id']
-            )
+                await query.message.reply_video(test['greeting_file_id'])
+            media_manager.mark_as_viewed(test['greeting_file_id'], user.id, test['id'])
         except Exception as e:
             logger.error(f"Ошибка отправки поздравления: {e}")
     
@@ -2180,17 +1844,14 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tests = get_user_tests(user_id)
     
     if not tests:
-        await update.message.reply_text("🌸 *У тебя пока нет тестов!*\n\nСоздай свой первый тест через кнопку «🌸 Создать тест» 💕", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
+        await update.message.reply_text("🌸 *У тебя пока нет тестов!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
         return
     
-    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 *Хранятся последние 10 тестов*\n\n"
-    for i, t in enumerate(tests, 1):
-        word = decline_friend_word(t['attempts'])
-        text += f"{i}. 📝 *{t['title'][:30]}*\n   👥 Прошли: {t['attempts']} {word}\n   📅 {t['created_at'][:10]}\n\n"
-    
-    text += "👇 Выбери тест для управления:"
+    text = "👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
     keyboard = []
     for t in tests:
+        word = decline_friend_word(t['attempts'])
+        text += f"📝 *{t['title'][:30]}* — {t['attempts']} {word}\n"
         keyboard.append([InlineKeyboardButton(f"📝 {t['title'][:30]}", callback_data=f"mytest_{t['id']}")])
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -2205,7 +1866,7 @@ async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     attempts = get_test_attempts(test_id)
     avg_score = sum(a['score'] for a in attempts) / len(attempts) if attempts else 0
-    text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)} {decline_friend_word(len(attempts))}\n🎯 Средний результат: {avg_score:.0f}%\n\n👇 Выбери действие:"
+    text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)}\n🎯 Средний: {avg_score:.0f}%"
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
 
 # === ПРЕМИУМ ===
@@ -2216,9 +1877,9 @@ async def premium_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_prem:
         user = get_user(user_id)
         expiry = datetime.fromisoformat(user['premium_until']).strftime('%d.%m.%Y')
-        text = (f"💎✨ *У ТЕБЯ ПРЕМИУМ!* ✨💎\n\n♾️ Безлимитные тесты\n🎓 Красивый золотой диплом\n📊 Смотреть ответы подруг\n\n📅 *Действует до:* {expiry}")
+        text = f"💎✨ *У ТЕБЯ ПРЕМИУМ!* ✨💎\n\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n📅 *Действует до:* {expiry}"
     else:
-        text = (f"💎 *ПРЕМИУМ ПОДПИСКА*\n\n✨ *Что даёт:*\n♾️ Безлимитные тесты\n🎓 Красивый золотой диплом\n📊 Смотреть ответы подруг\n\n💰 *Стоимость:*\n• 99₽ — 15 дней\n• 149₽ — месяц\n\n👇 *Выбери тариф:*")
+        text = "💎 *ПРЕМИУМ*\n\n✨ Что даёт:\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n💰 *Стоимость:*\n• 99₽ — 15 дней\n• 149₽ — месяц"
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_keyboard() if not is_prem else get_main_keyboard(user_id))
 
@@ -2229,16 +1890,14 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "buy_15days":
         days = 15
         price_rub = 99
-        title = "Premium на 15 дней"
     else:
         days = 30
         price_rub = 149
-        title = "Premium на 30 дней"
     
     payment = Payment.create({
         "amount": {"value": f"{price_rub}.00", "currency": "RUB"},
         "confirmation": {"type": "redirect", "return_url": f"https://t.me/{BOT_USERNAME}"},
-        "description": title,
+        "description": f"Premium на {days} дней",
         "metadata": {"user_id": query.from_user.id, "days": days},
         "capture": True
     })
@@ -2246,7 +1905,7 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(f"💎 Оплатить {price_rub}₽", url=payment.confirmation.confirmation_url)]])
     
     await query.message.reply_text(
-        f"💎 *{title}*\n\n💰 Сумма: *{price_rub}₽*\n📅 Срок: *{days} дней*\n\n✨ *Что входит:*\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n👇 *Нажми на кнопку для оплаты:*",
+        f"💎 *Premium на {days} дней*\n\n💰 *{price_rub}₽*\n👇 Нажми для оплаты",
         parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
     )
 
@@ -2256,7 +1915,6 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
     
-    # Приоритетные проверки для админа
     if context.user_data.get('creating_broadcast'):
         if text == "❌ Отмена":
             del context.user_data['creating_broadcast']
@@ -2297,45 +1955,18 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await admin_broadcast_start(update, context)
     elif text == "❌ Отмена":
         if 'creating_test' in context.user_data:
-            data = context.user_data['creating_test']
-            if data.get('waiting_custom_question'):
-                data['waiting_custom_question'] = False
-                await update.message.reply_text("🔙 Возвращаемся к выбору вопроса...")
-                await show_question_for_selection(update, context)
-                return
-            if data.get('waiting_photo'):
-                data['waiting_photo'] = False
-                await update.message.reply_text("🔙 Возвращаемся к выбору вопроса...")
-                await show_question_for_selection(update, context)
-                return
             del context.user_data['creating_test']
             await update.message.reply_text("❌ Создание отменено", reply_markup=get_main_keyboard(user_id))
         elif user_id == ADMIN_ID and context.user_data.get('admin_action'):
             del context.user_data['admin_action']
-            if 'premium_days' in context.user_data:
-                del context.user_data['premium_days']
-            await start(update, context)
+            await admin_panel(update, context)
         else:
             await start(update, context)
     elif text == "🔙 Назад":
-        data = context.user_data.get('creating_test')
-        if data and data.get('step') == 'collecting_options':
-            data['step'] = 'selecting_question'
-            await update.message.reply_text("🔙 Возвращаемся к выбору вопроса...")
-            await show_question_for_selection(update, context)
-        elif user_id == ADMIN_ID and context.user_data.get('admin_action'):
-            del context.user_data['admin_action']
-            if 'premium_days' in context.user_data:
-                del context.user_data['premium_days']
-            await start(update, context)
-        else:
-            await start(update, context)
+        await start(update, context)
     elif text == "➕ Добавить вариант":
         data = context.user_data.get('creating_test')
-        if data and data.get('step') == 'collecting_options':
-            if len(data.get('current_options', [])) >= MAX_OPTIONS:
-                await update.message.reply_text(f"⚠️ *Максимум {MAX_OPTIONS} вариантов!* Нажми «✅ Готово»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
-                return
+        if data and data.get('step') == 'collecting_options' and len(data.get('current_options', [])) < MAX_OPTIONS:
             data['waiting_for_option'] = True
             await update.message.reply_text(f"✏️ *Напиши вариант №{len(data['current_options']) + 1}:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
     elif text == "✅ Готово":
@@ -2343,59 +1974,45 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data and data.get('step') == 'collecting_options':
             options = data.get('current_options', [])
             if len(options) < 2:
-                await update.message.reply_text(f"⚠️ *Нужно минимум 2 варианта!* Добавь ещё", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                await update.message.reply_text("⚠️ *Минимум 2 варианта!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
                 data['waiting_for_option'] = True
                 return
             keyboard = []
             for i, opt in enumerate(options):
                 keyboard.append([InlineKeyboardButton(f"{i+1}. {opt[:30]}", callback_data=f"correct_{i}")])
-            await update.message.reply_text(f"❓ *Вопрос:* {data['current_question']}\n\n👇 *Какой вариант ПРАВИЛЬНЫЙ?* 👇", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_text(f"❓ *Вопрос:* {data['current_question']}\n\n👇 *Какой вариант ПРАВИЛЬНЫЙ?*", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
             data['waiting_for_option'] = False
     else:
         data = context.user_data.get('creating_test')
-        
-        if data and data.get('waiting_comment'):
-            await save_comment(update, context)
-            return
-        
-        if data and data.get('waiting_photo'):
-            return
-        
-        if data and data.get('waiting_custom_question'):
-            text = update.message.text.strip()
-            if len(text) < 5:
-                await update.message.reply_text("⚠️ Вопрос должен быть длиннее 5 символов!")
-                return
-            if len(text) > 150:
-                await update.message.reply_text("⚠️ Вопрос слишком длинный! До 150 символов.")
-                return
-            data['current_question'] = text
-            data['waiting_custom_question'] = False
-            data['current_options'] = []
-            data['step'] = 'collecting_options'
-            data['waiting_for_option'] = True
-            await update.message.reply_text(f"✅ *Вопрос сохранён!*\n\n📝 *Твой вопрос:* {text}\n\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
-            return
-        
-        if data and data.get('step') == 'collecting_options':
-            if data.get('waiting_for_option'):
-                await handle_create_test(update, context)
-            else:
-                if len(data.get('current_options', [])) >= MAX_OPTIONS:
-                    await update.message.reply_text(f"⚠️ *Максимум {MAX_OPTIONS} вариантов!* Нажми «✅ Готово»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+        if data:
+            if data.get('waiting_comment'):
+                await save_comment(update, context)
+            elif data.get('waiting_custom_question'):
+                text = update.message.text.strip()
+                if len(text) < 5:
+                    await update.message.reply_text("⚠️ Вопрос должен быть длиннее 5 символов!")
                     return
+                data['current_question'] = text
+                data['waiting_custom_question'] = False
+                data['current_options'] = []
+                data['step'] = 'collecting_options'
+                data['waiting_for_option'] = True
+                await update.message.reply_text(f"✅ *Вопрос сохранён!*\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+            elif data.get('step') == 'collecting_options' and data.get('waiting_for_option'):
+                await handle_create_test(update, context)
+            elif data.get('step') == 'collecting_options' and not data.get('waiting_for_option'):
                 option_text = text.strip()
                 if len(option_text) > 50:
-                    await update.message.reply_text("⚠️ *Слишком длинный вариант!* До 50 символов.")
+                    await update.message.reply_text("⚠️ *Слишком длинный вариант!*")
                     return
                 data['current_options'].append(option_text)
                 options_list = "\n".join([f"{i+1}. {o}" for i, o in enumerate(data['current_options'])])
                 if len(data['current_options']) >= MAX_OPTIONS:
-                    await update.message.reply_text(f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n📋 *Твои варианты:*\n{options_list}\n\n🎯 *Достигнут максимум!* Нажми «✅ Готово» чтобы продолжить.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                    await update.message.reply_text(f"✅ *Достигнут максимум!*\n\n{options_list}\nНажми «✅ Готово»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
                 else:
-                    await update.message.reply_text(f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n📋 *Твои варианты:*\n{options_list}\n\n➕ *Можешь добавить ещё или нажать «Готово»*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
-        elif 'creating_test' in context.user_data:
-            await handle_create_test(update, context)
+                    await update.message.reply_text(f"✅ *Вариант добавлен!*\n\n{options_list}\n\n➕ Добавь ещё или нажми «✅ Готово»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+            else:
+                await handle_create_test(update, context)
 
 # === CALLBACK ОБРАБОТЧИК ===
 @rate_limit('callback')
@@ -2410,7 +2027,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("preset_"):
         await select_preset(update, context)
     elif data == "back_to_groups":
-        await query.message.edit_text("✨ Выбери тему для вопросов:", reply_markup=get_question_groups_keyboard())
+        await query.message.edit_text("✨ Выбери тему:", reply_markup=get_question_groups_keyboard())
     elif data == "next_question":
         await next_question_callback(update, context)
     elif data == "random_question":
@@ -2430,7 +2047,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("give_premium_"):
         days = int(data.replace("give_premium_", ""))
         context.user_data['premium_days'] = days
-        await query.message.edit_text(f"🎁 *ПОДАРИТЬ ПРЕМИУМ НА {days} {decline_word(days, 'ДЕНЬ', 'ДНЯ', 'ДНЕЙ')}*\n\nВведите username или ID пользователя:", parse_mode=ParseMode.MARKDOWN)
+        await query.message.edit_text(f"🎁 *ПРЕМИУМ НА {days} {decline_word(days, 'ДЕНЬ', 'ДНЯ', 'ДНЕЙ')}*\n\nВведите username или ID:", parse_mode=ParseMode.MARKDOWN)
         await query.message.reply_text("Ожидаю ввод...", reply_markup=get_cancel_keyboard())
     elif data.startswith("start_"):
         await start_test(update, context)
@@ -2455,29 +2072,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if test:
             attempts = get_test_attempts(test_id)
             avg_score = sum(a['score'] for a in attempts) / len(attempts) if attempts else 0
-            text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)} {decline_friend_word(len(attempts))}\n🎯 Средний результат: {avg_score:.0f}%\n\n👇 Выбери действие:"
+            text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)}\n🎯 Средний: {avg_score:.0f}%"
             await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
     elif data.startswith("share_"):
         test_id = int(data.replace("share_", ""))
-        user_id = query.from_user.id
-        if not is_premium(user_id):
-            conn = get_db()
-            c = conn.cursor()
-            c.execute('UPDATE users SET tests_created = tests_created + 1 WHERE user_id = ?', (user_id,))
-            conn.commit()
-            user_data = get_user(user_id)
-            tests_created = user_data.get('tests_created', 0)
-            remaining = FREE_TESTS_LIMIT - tests_created
-            conn.close()
-            if remaining >= 0:
-                word = decline_word(remaining, "тест", "теста", "тестов")
-                spent_info = f"\n\n📦 *Списан 1 тест*\n📊 *Осталось:* {remaining} {word}"
-            else:
-                spent_info = f"\n\n📦 *Списан 1 тест*\n⚠️ *Лимит превышен!*"
-        else:
-            spent_info = "\n\n💎 *Премиум — безлимитные отправки!*"
-        text = f"📤 *ПОДЕЛИСЬ ТЕСТОМ С ПОДРУГОЙ!*{spent_info}"
-        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id))
+        await query.message.reply_text("📤 *Поделись с подругой!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id))
     elif data.startswith("answers_"):
         test_id = int(data.replace("answers_", ""))
         if not is_premium(query.from_user.id):
@@ -2488,12 +2087,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not attempts:
             await query.message.reply_text("👻 *Пока никто не прошёл тест*", parse_mode=ParseMode.MARKDOWN)
             return
-        text = f"📊 *ОТВЕТЫ ПОДРУГ*\n\n📝 *{test['title']}*\n\n👥 *Прошли:* {len(attempts)} {decline_friend_word(len(attempts))}\n\n👇 *Выбери подругу:*"
+        text = f"📊 *ОТВЕТЫ ПОДРУГ*\n\n📝 *{test['title']}*\n\n"
         keyboard = []
         for a in attempts[:10]:
-            name = a['friend_name'][:20]
-            keyboard.append([InlineKeyboardButton(f"👤 {name}: {a['score']:.0f}%", callback_data=f"friend_details_{test_id}_{a['friend_name']}")])
-        keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{test_id}")])
+            text += f"👤 *{a['friend_name']}*: {a['score']:.0f}%\n"
+            keyboard.append([InlineKeyboardButton(f"👤 {a['friend_name']}: {a['score']:.0f}%", callback_data=f"friend_details_{test_id}_{a['friend_name']}")])
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
     elif data.startswith("friend_details_"):
         parts = data.split("_", 2)
@@ -2501,46 +2099,34 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         friend_name = parts[2].split("_", 1)[1] if "_" in parts[2] else parts[2]
         test = get_test_by_id(test_id)
         attempts = get_test_attempts(test_id)
-        attempt = None
-        for a in attempts:
-            if a['friend_name'] == friend_name:
-                attempt = a
-                break
+        attempt = next((a for a in attempts if a['friend_name'] == friend_name), None)
         if not attempt:
             await query.answer("❌ Ответы не найдены", show_alert=True)
             return
-        score = attempt['score']
-        level, description = get_detailed_stats(score)
-        prediction = get_friendship_prediction(score, friend_name)
-        text = f"👤 *{friend_name}*\n📝 *{test['title']}*\n\n🎯 *Результат:* {score:.0f}%\n🏆 *Уровень:* {level}\n📊 *{description}*\n\n"
-        text += f"🔮 *Предсказание:*\n_{prediction}_\n\n━━━━━━━━━━━━━━━━\n*ВСЕ ОТВЕТЫ:*\n\n"
+        text = f"👤 *{friend_name}*\n🎯 *{attempt['score']:.0f}%*\n\n"
         for i, q in enumerate(test['questions']):
             text += f"*{i+1}. {q}*\n"
             if i < len(attempt['answers']):
-                user_answer_idx = attempt['answers'][i]
-                correct_idx = test['correct_answers'][i]
-                is_correct = user_answer_idx == correct_idx
-                user_answer = test['options'][i][user_answer_idx] if user_answer_idx < len(test['options'][i]) else "❓"
-                correct_answer = test['options'][i][correct_idx]
-                if is_correct:
-                    text += f"   ✅ *{user_answer}*\n"
-                else:
-                    text += f"   ❌ *{user_answer}*\n   ✅ *Правильно: {correct_answer}*\n"
+                user_ans = test['options'][i][attempt['answers'][i]] if attempt['answers'][i] < len(test['options'][i]) else "❓"
+                correct_ans = test['options'][i][test['correct_answers'][i]]
+                is_correct = attempt['answers'][i] == test['correct_answers'][i]
+                text += f"   {'✅' if is_correct else '❌'} *{user_ans}*\n"
+                if not is_correct:
+                    text += f"   ✅ *Правильно: {correct_ans}*\n"
             text += "\n"
         await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN)
     elif data.startswith("battle_"):
         test_id = int(data.replace("battle_", ""))
-        test = get_test_by_id(test_id)
         attempts = get_test_attempts(test_id)
         if len(attempts) < 2:
-            await query.message.reply_text("⚔️ *БИТВА ПОДРУГ*\n\n😢 Пока недостаточно участниц!\nНужно минимум 2 подруги.", parse_mode=ParseMode.MARKDOWN)
+            await query.message.reply_text("⚔️ *Нужно минимум 2 подруги!*", parse_mode=ParseMode.MARKDOWN)
             return
         sorted_attempts = sorted(attempts, key=lambda x: x['score'], reverse=True)
-        text = f"⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━\n\n"
+        text = "⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n"
         medals = ["🥇", "🥈", "🥉"]
         for i, a in enumerate(sorted_attempts[:5], 1):
             medal = medals[i-1] if i <= 3 else f"{i}."
-            text += f"{medal} *{a['friend_name']}*\n   🎯 *{a['score']:.0f}%*\n"
+            text += f"{medal} *{a['friend_name']}*: {a['score']:.0f}%\n"
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
     elif data.startswith("stats_friendship_"):
         test_id = int(data.replace("stats_friendship_", ""))
@@ -2548,12 +2134,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not attempts:
             await query.message.reply_text("📈 *Пока никто не прошёл тест!*", parse_mode=ParseMode.MARKDOWN)
             return
-        text = f"📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━\n\n"
+        text = "📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n"
         for a in attempts[:10]:
             score = a['score']
-            bar_length = 10
-            filled = int(score / 10)
-            bar = "█" * filled + "░" * (bar_length - filled)
+            bar = "█" * int(score / 10) + "░" * (10 - int(score / 10))
             emoji = "💕" if score >= 80 else "🌸" if score >= 60 else "👋" if score >= 40 else "🤔"
             text += f"{emoji} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n\n"
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
@@ -2565,74 +2149,24 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await buy_premium(update, context)
     elif data == "admin_refresh_stats":
         await admin_stats(update, context)
-    elif data == "admin_detailed_stats":
-        await admin_detailed_stats(update, context)
     elif data == "admin_funnel":
         await admin_funnel(update, context)
-    elif data == "admin_cohorts":
-        await admin_cohorts(update, context)
-    elif data == "admin_list_users":
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT user_id, first_name, username, tests_created, is_premium FROM users ORDER BY created_at DESC LIMIT 20')
-        users = c.fetchall()
-        conn.close()
-        text = "📋 *ПОСЛЕДНИЕ 20 ПОЛЬЗОВАТЕЛЕЙ*\n\n"
-        for u in users:
-            name = u['first_name'] or "Без имени"
-            username = f"(@{u['username']})" if u['username'] else ""
-            premium = "💎" if u['is_premium'] else ""
-            text += f"• *{name}* {username} — {u['tests_created']} тестов {premium}\n"
-        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
     elif data == "back_to_admin":
         query = update.callback_query
         await query.answer()
         await admin_panel(update, context)
     elif data == "server_refresh":
         await admin_server_stats_compact(update, context)
-    elif data == "antispam_refresh":
-        await admin_antispam_stats(update, context)
     elif data == "admin_media_stats":
         await admin_media_stats(update, context)
     elif data == "media_force_cleanup":
         result = media_manager.periodic_cleanup()
         await query.answer(f"✅ Очищено {result['total_cleaned']} записей")
         await admin_media_stats(update, context)
-    elif data == "admin_broadcast_stats_refresh":
-        await broadcast_stats_handler(update, context)
-    elif data == "broadcast_detail_select":
-        broadcasts = broadcast_manager.get_recent_broadcasts(10)
-        keyboard = []
-        for b in broadcasts:
-            keyboard.append([InlineKeyboardButton(
-                f"#{b['id']} — {b['created_at'][:16]} ({b['sent_count']}/{b['total_users']})",
-                callback_data=f"broadcast_detail_{b['id']}"
-            )])
-        keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="admin_broadcast_stats_refresh")])
-        await query.message.edit_text("🔍 *Выбери рассылку:*", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
-    elif data.startswith("broadcast_detail_"):
-        broadcast_id = int(data.replace("broadcast_detail_", ""))
-        stats = broadcast_manager.get_broadcast_stats(broadcast_id)
-        if stats:
-            text = f"""
-🔍 *РАССЫЛКА #{broadcast_id}*
-
-📅 {stats['created_at'][:16]}
-📊 Статус: {stats['status']}
-
-👥 *Охват:*
-├ Всего: *{stats['total_users']}*
-├ Отправлено: *{stats['sent_count']}*
-├ Доставлено: *{stats['delivered_count']}* ({stats.get('delivery_rate', 0)}%)
-├ Прочитано: *{stats['read_count']}* ({stats.get('read_rate', 0)}%)
-├ Заблокировали: *{stats['blocked_count']}* ({stats.get('block_rate', 0)}%)
-└ Ошибки: *{stats['failed_count']}* ({stats.get('fail_rate', 0)}%)
-"""
-            await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
     
     await query.answer()
 
-# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ СОЗДАНИЯ ТЕСТА ===
+# === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -2650,7 +2184,7 @@ async def select_question_group(update: Update, context: ContextTypes.DEFAULT_TY
         data['group_questions'] = QUESTIONS.get(group, []).copy()
         random.shuffle(data['group_questions'])
     data['step'] = 'questions_count'
-    await query.message.reply_text(f"📊 Сколько вопросов будет в тесте?\n🔹 От 2 до {MAX_QUESTIONS} вопросов\n\n✏️ Напиши число:", reply_markup=get_cancel_keyboard())
+    await query.message.reply_text(f"📊 Сколько вопросов?\n✏️ Напиши число от 2 до {MAX_QUESTIONS}:", reply_markup=get_cancel_keyboard())
 
 async def show_presets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2659,7 +2193,7 @@ async def show_presets(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for key, preset in PRESET_GROUPS.items():
         keyboard.append([InlineKeyboardButton(preset['name'], callback_data=f"preset_{key}")])
     keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_groups")])
-    await query.message.edit_text("📦 *ГОТОВЫЕ НАБОРЫ*\n\n👇 *Выбери набор:*", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.message.edit_text("📦 *ГОТОВЫЕ НАБОРЫ*\n\n👇 Выбери:", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def select_preset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2673,7 +2207,7 @@ async def select_preset(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     data['group_questions'] = preset['questions']
     data['step'] = 'questions_count'
-    await query.message.reply_text(f"✅ Выбран набор: *{preset['name']}*\n\n📊 Сколько вопросов?\n✏️ Напиши число:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    await query.message.reply_text(f"✅ *{preset['name']}*\n📊 Сколько вопросов?\n✏️ Напиши число:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def greeting_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2685,13 +2219,13 @@ async def greeting_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data['current_question_index'] = 0
         data['greeting_type'] = None
         data['greeting_file_id'] = None
-        await query.message.reply_text("✨ *Отлично! Приступаем к вопросам!* ✨", parse_mode=ParseMode.MARKDOWN)
+        await query.message.reply_text("✨ *Приступаем к вопросам!*", parse_mode=ParseMode.MARKDOWN)
         await show_question_for_selection(query, context)
         return
     data['greeting_type'] = choice
     data['waiting_greeting'] = True
-    text = "🎤 Отправь голосовое сообщение (до 15 секунд)" if choice == "voice" else "🎥 Отправь видео (до 15 секунд)"
-    await query.message.reply_text(text + "\n\n❌ *Отмена* — чтобы пропустить", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    text = "🎤 Отправь голосовое (до 15 сек)" if choice == "voice" else "🎥 Отправь видео (до 15 сек)"
+    await query.message.reply_text(text + "\n\n❌ *Отмена* — пропустить", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('creating_test')
@@ -2703,14 +2237,12 @@ async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if greeting_type == "voice":
         if not update.message.voice:
-            await update.message.reply_text("❌ Отправь голосовое сообщение!")
             return
         file_id = update.message.voice.file_id
         file_size = update.message.voice.file_size or 0
         duration = update.message.voice.duration or 0
     else:
         if not update.message.video:
-            await update.message.reply_text("❌ Отправь видео!")
             return
         file_id = update.message.video.file_id
         file_size = update.message.video.file_size or 0
@@ -2727,7 +2259,7 @@ async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['current_question_index'] = 0
     data['_pending_media'] = {'file_id': file_id, 'file_type': greeting_type, 'file_size': file_size, 'duration': duration}
     
-    await update.message.reply_text("✅ *Поздравление сохранено!*\n\n✨ *Приступаем к вопросам!* ✨", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
+    await update.message.reply_text("✅ *Поздравление сохранено!*\n✨ *Приступаем к вопросам!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
     await show_question_for_selection(update, context)
 
 async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2736,16 +2268,9 @@ async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     if not update.message.photo:
-        await update.message.reply_text("❌ Отправь фото!")
         return
     
     photo_file_id = update.message.photo[-1].file_id
-    file_size = update.message.photo[-1].file_size or 0
-    
-    validation = media_manager.validate_media(photo_file_id, 'photo', file_size)
-    if not validation['valid']:
-        await update.message.reply_text(f"❌ {validation['reason']}")
-        return
     
     if 'photos' not in data:
         data['photos'] = {}
@@ -2753,14 +2278,14 @@ async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if '_pending_photos' not in data:
         data['_pending_photos'] = []
-    data['_pending_photos'].append({'file_id': photo_file_id, 'question_index': data['current_q']})
+    data['_pending_photos'].append({'file_id': photo_file_id})
     
     data['waiting_photo'] = False
     data['step'] = 'collecting_options'
     data['current_options'] = []
     data['waiting_for_option'] = True
     
-    await update.message.reply_text("✅ *Фото добавлено!*\n\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    await update.message.reply_text("✅ *Фото добавлено!*\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def show_question_for_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('creating_test')
@@ -2770,7 +2295,7 @@ async def show_question_for_selection(update: Update, context: ContextTypes.DEFA
     data['current_question_index'] = data.get('current_question_index', 0)
     question_text = questions[data['current_question_index']]
     data['current_question'] = question_text
-    text = f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}\n\n👇 *Что делаем с этим вопросом?*"
+    text = f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{question_text}"
     
     if hasattr(update, 'message'):
         await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
@@ -2784,11 +2309,10 @@ async def next_question_callback(update: Update, context: ContextTypes.DEFAULT_T
     if not data:
         return
     questions = data.get('group_questions', [])
-    current_idx = data.get('current_question_index', 0)
-    current_idx = (current_idx + 1) % len(questions)
+    current_idx = (data.get('current_question_index', 0) + 1) % len(questions)
     data['current_question_index'] = current_idx
     data['current_question'] = questions[current_idx]
-    text = f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{questions[current_idx]}\n\n👇 *Что делаем с этим вопросом?*"
+    text = f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{questions[current_idx]}"
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
 
 async def random_question_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2804,7 +2328,7 @@ async def random_question_callback(update: Update, context: ContextTypes.DEFAULT
     data['group_questions'] = all_questions[:30]
     data['current_question_index'] = 0
     data['current_question'] = all_questions[0]
-    text = f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{all_questions[0]}\n\n👇 *Что делаем с этим вопросом?*"
+    text = f"📝 *Вопрос {data['current_q'] + 1}/{data['total_q']}*\n\n{all_questions[0]}"
     await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
 
 async def select_this_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2823,10 +2347,9 @@ async def add_photo_to_question(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
     data = context.user_data.get('creating_test')
     if not data or not data.get('current_question'):
-        await query.message.reply_text("❌ Сначала выбери вопрос!")
         return
     data['waiting_photo'] = True
-    await query.message.reply_text("📸 *Отправь фото для этого вопроса*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    await query.message.reply_text("📸 *Отправь фото*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def custom_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2835,7 +2358,7 @@ async def custom_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data:
         return
     data['waiting_custom_question'] = True
-    await query.message.reply_text("✏️ *ВВЕДИ СВОЙ ВОПРОС*\n\nНапиши свой уникальный вопрос:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    await query.message.reply_text("✏️ *Напиши свой вопрос:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2845,7 +2368,7 @@ async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data:
         return
     await query.message.reply_text(
-        f"💬 *Хочешь добавить комментарий к правильному ответу?*\n\nНапиши комментарий или нажми «Пропустить»",
+        "💬 *Хочешь добавить комментарий?*\nНапиши или нажми «Пропустить»",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭️ Пропустить", callback_data=f"skip_comment_{correct_idx}")]])
     )
@@ -2891,7 +2414,7 @@ async def continue_after_comment(update_or_query, context, correct_idx):
         data['waiting_for_option'] = False
         data['waiting_comment'] = False
         
-        msg = f"✅ *Вопрос {data['current_q']} сохранён!* ✅\n\n➡️ *Переходим к следующему...*"
+        msg = f"✅ *Вопрос {data['current_q']} сохранён!*"
         if hasattr(update_or_query, 'message'):
             await update_or_query.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
         else:
@@ -2916,7 +2439,6 @@ async def continue_after_comment(update_or_query, context, correct_idx):
                               data.get('greeting_type'), data.get('greeting_file_id'),
                               data.get('comments', {}), data.get('photos', {}))
         
-        # Регистрируем медиа
         pending_media = data.get('_pending_media')
         if pending_media:
             media_manager.track_media(
@@ -2930,51 +2452,13 @@ async def continue_after_comment(update_or_query, context, correct_idx):
         
         del context.user_data['creating_test']
         
-        text = f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n🔢 Вопросов: {len(questions)}\n\n💖 Отправь ссылку подружке!"
+        text = f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n🔢 Вопросов: {len(questions)}"
         
         if hasattr(update_or_query, 'message'):
             await update_or_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id))
         else:
             await update_or_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id))
         await update_or_query.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(user.id))
-
-# === ДОПОЛНИТЕЛЬНЫЕ АДМИН-ФУНКЦИИ ===
-async def admin_detailed_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    c.execute('SELECT COUNT(*) FROM tests WHERE greeting_type IS NOT NULL')
-    tests_with_greeting = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM tests WHERE question_photos IS NOT NULL AND question_photos != "{}"')
-    tests_with_photos = c.fetchone()[0]
-    
-    c.execute('''SELECT AVG(CAST((julianday(a.completed_at) - julianday(t.created_at)) * 24 * 60 AS INTEGER))
-                 FROM tests t JOIN attempts a ON t.id = a.test_id''')
-    avg_time = c.fetchone()[0] or 0
-    
-    c.execute('''SELECT CAST(strftime('%H', completed_at) AS INTEGER) as hour, COUNT(*) as count
-                 FROM attempts GROUP BY hour ORDER BY count DESC LIMIT 3''')
-    peak_hours = c.fetchall()
-    
-    conn.close()
-    
-    text = f"""
-🔍 *ДЕТАЛЬНАЯ СТАТИСТИКА*
-
-📝 *ТЕСТЫ*
-├ С поздравлениями: *{tests_with_greeting}*
-├ С фото: *{tests_with_photos}*
-└ Среднее время до прохождения: *{round(avg_time, 1)}* мин
-
-⏰ *ПИКОВЫЕ ЧАСЫ*
-"""
-    for peak in peak_hours:
-        text += f"├ {peak['hour']:02d}:00 — *{peak['count']}* прохождений\n"
-    
-    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
 
 async def admin_funnel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -2996,3 +2480,53 @@ async def admin_funnel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"""
 🔄 *ВОРОНКА КОНВЕРСИИ*
 
+👥 Всего: *{total}* (100%)
+📝 Создали тест: *{created}* ({round(created/max(total,1)*100, 1)}%)
+🎮 Прошли тест: *{passed}* ({round(passed/max(total,1)*100, 1)}%)
+💎 Премиум: *{premium}* ({round(premium/max(total,1)*100, 1)}%)
+"""
+    await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
+
+# === ПЕРИОДИЧЕСКИЕ ЗАДАЧИ ===
+async def cleanup_media_job(context: ContextTypes.DEFAULT_TYPE):
+    result = media_manager.periodic_cleanup()
+    logger.info(f"🧹 Очистка медиа: {result['total_cleaned']} записей")
+
+async def cleanup_antispam_job(context: ContextTypes.DEFAULT_TYPE):
+    antispam.periodic_cleanup()
+    logger.info("🧹 Очистка антиспама выполнена")
+
+# === MAIN ===
+def main():
+    global bot_application
+    
+    app = Application.builder().token(TOKEN).build()
+    bot_application = app
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.Regex("^🌸 Создать тест$"), create_test_start))
+    app.add_handler(MessageHandler(filters.Regex("^👑 Мои тесты$"), my_tests_handler))
+    app.add_handler(MessageHandler(filters.Regex("^💎 Премиум$"), premium_handler))
+    app.add_handler(MessageHandler(filters.Regex("^🔧 Админ-панель$"), admin_panel))
+    app.add_handler(MessageHandler(filters.Regex("^📊 Статистика$"), admin_stats))
+    app.add_handler(MessageHandler(filters.Regex("^🖥 Сервер$"), admin_server_stats_compact))
+    app.add_handler(MessageHandler(filters.Regex("^🛡 Антиспам$"), admin_antispam_stats))
+    app.add_handler(MessageHandler(filters.Regex("^🎬 Медиа$"), admin_media_stats))
+    app.add_handler(MessageHandler(filters.Regex("^🎁 Подарить премиум$"), admin_give_premium_start))
+    app.add_handler(MessageHandler(filters.Regex("^➕ Начислить тесты$"), admin_add_tests_start))
+    app.add_handler(MessageHandler(filters.Regex("^📢 Рассылка$"), admin_broadcast_start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_buttons))
+    app.add_handler(MessageHandler(filters.VOICE, save_greeting))
+    app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
+    app.add_handler(MessageHandler(filters.PHOTO, save_photo))
+    app.add_handler(CallbackQueryHandler(callback_handler))
+    
+    app.job_queue.run_repeating(cleanup_media_job, interval=3600, first=600)
+    app.job_queue.run_repeating(cleanup_antispam_job, interval=3600, first=300)
+    
+    logger.info("🚀✨ Бот запущен! Версия 9.5 (без Flask) ✨🚀")
+    
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
