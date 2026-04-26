@@ -664,51 +664,51 @@ QUESTIONS = {
 
 # === СТАТУСЫ ДРУЖБЫ ===
 def get_friendship_status(score):
-    if score >= 90: return "СЁСТРЫ НАВЕК!"
-    if score >= 70: return "ЛУЧШИЕ ПОДРУГИ!"
-    if score >= 50: return "ХОРОШИЕ ПОДРУЖКИ!"
-    if score >= 30: return "ПРИЯТЕЛЬНИЦЫ!"
-    return "ПОКА ЗНАКОМЫЕ"
+    if score >= 90: return "СЁСТРЫ НАВЕК! 👑"
+    if score >= 70: return "ЛУЧШИЕ ПОДРУГИ! 💎"
+    if score >= 50: return "ХОРОШИЕ ПОДРУЖКИ! 🌸"
+    if score >= 30: return "ПРИЯТЕЛЬНИЦЫ! 🌱"
+    return "ЗНАКОМЫЕ! 🦋"
 
 def get_friendship_prediction(score, name):
     if score >= 90:
         predictions = [
-            f"{name} — твоя родственная душа! Вы понимаете друг друга с полуслова.",
-            f"{name} знает тебя лучше всех! Вы как сёстры — такие друзья встречаются раз в жизни.",
-            f"{name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга!"
+            f"💕 {name} — твоя родственная душа! Вы понимаете друг друга с полуслова. Береги эту дружбу, она особенная! ✨",
+            f"👑 {name} знает тебя лучше всех! Вы как сёстры — такие друзья встречаются раз в жизни. Цени её! 💎",
+            f"🌟 {name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга! 💖"
         ]
     elif score >= 70:
         predictions = [
-            f"{name} очень хорошо тебя знает! Вы близкие подруги.",
-            f"{name} понимает тебя почти во всём. Ещё немного — и вы станете лучшими подругами!",
-            f"Вы с {name} на одной волне! Продолжайте узнавать друг друга ещё лучше."
+            f"💎 {name} очень хорошо тебя знает! Вы близкие подруги, и ваша дружба крепнет с каждым днём 🌸",
+            f"✨ {name} понимает тебя почти во всём. Ещё немного — и вы станете лучшими подругами! 💕",
+            f"🌟 Вы с {name} на одной волне! Узнавайте друг друга ещё глубже, впереди много интересного! 🎵"
         ]
     elif score >= 50:
         predictions = [
-            f"{name} знает тебя неплохо, но есть куда расти!",
-            f"Ваша дружба с {name} только расцветает!",
-            f"{name} уже многое о тебе знает. Ещё немного — и вы станете ближе!"
+            f"🌸 {name} знает тебя неплохо, но есть куда расти! Проводите больше времени вместе, это сближает 💫",
+            f"🌱 Ваша дружба с {name} только расцветает! Делитесь секретами, мечтами и любимыми треками 🎧",
+            f"💫 {name} уже многое о тебе знает. Ещё немного — и вы станете ближе! Устройте совместную прогулку 🌈"
         ]
     elif score >= 30:
         predictions = [
-            f"{name} только начинает тебя узнавать. Это отличный повод пообщаться побольше!",
-            f"Вы с {name} на пути к настоящей дружбе.",
-            f"{name} знает о тебе основы. Расскажи ей о себе побольше!"
+            f"🦋 {name} только начинает тебя узнавать. Это отличный повод пообщаться побольше! Расскажи о себе 💬",
+            f"🌱 Вы с {name} на пути к настоящей дружбе. Не останавливайтесь! Впереди столько всего интересного ✨",
+            f"📖 {name} знает о тебе основы. Пригласи её на кофе или созвон — это сближает! 💕"
         ]
     else:
         predictions = [
-            f"{name} пока плохо тебя знает. Но это только начало!",
-            f"{name} ещё предстоит узнать тебя получше.",
-            f"Ваша дружба с {name} только зарождается. Впереди много интересного!"
+            f"🦋 {name} пока плохо тебя знает. Но это только начало! Каждая великая дружба начинается с первого шага ✨",
+            f"🌱 {name} ещё предстоит узнать тебя получше. Поделись своими увлечениями и любимыми фильмами 🎬",
+            f"💫 Ваша дружба с {name} только зарождается. Впереди много смеха, секретов и совместных фото! 📸"
         ]
     return random.choice(predictions)
 
 def get_detailed_stats(score):
-    if score >= 90: return "ЭКСПЕРТ", "Знает тебя наизусть!"
-    elif score >= 70: return "ПРОФИ", "Отлично тебя знает!"
-    elif score >= 50: return "ЛЮБИТЕЛЬ", "Хорошо тебя знает"
-    elif score >= 30: return "НОВИЧОК", "Только узнаёт тебя"
-    else: return "НЕЗНАКОМКА", "Почти не знает тебя"
+    if score >= 90: return "ЭКСПЕРТ 👑", "Знает тебя наизусть! Вы родственные души"
+    elif score >= 70: return "ПРОФИ 💎", "Отлично тебя знает! Настоящая подруга"
+    elif score >= 50: return "ЗНАЕТ 🌸", "Хорошо тебя знает, но есть куда расти"
+    elif score >= 30: return "УЧИТСЯ 🌱", "Только узнаёт тебя. Гуляйте чаще!"
+    else: return "НОВИЧОК 🦋", "Почти не знает. Расскажи о себе больше!"
 
 # === БАЗА ДАННЫХ ===
 def get_db():
@@ -1187,20 +1187,27 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_prem = is_premium(user.id)
     
     if is_prem:
-        text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
-                f"Создай тест о себе и отправь подружке!\n"
-                f"💎 *Статус:* ПРЕМИУМ ✨\n"
-                f"♾️ *Безлимитные тесты*\n"
-                f"📊 *Отправлено:* {tests_created} тестов")
+        text = (f"💎✨ *ПРИВЕТ, {user.first_name}!* ✨💎\n\n"
+                f"🌸 Добро пожаловать в мир тестов для лучших подруг! 💕\n\n"
+                f"👑 *Твой статус:* ПРЕМИУМ\n"
+                f"♾️ Безлимитные тесты\n"
+                f"🎓 Золотые дипломы\n"
+                f"📊 Смотри ответы подруг\n\n"
+                f"✨ *Создай тест о себе и узнай, кто знает тебя лучше всех!* 💕")
     else:
         available = get_available_tests_count(user.id)
         word = decline_word(available, "тест", "теста", "тестов")
         tests_info = f"📊 *Осталось:* {available} {word}" if available > 0 else "⚠️ *Лимит исчерпан!*"
         text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
-                f"Создай тест о себе и отправь подружке!\n\n"
+                f"💕 Создай тест о себе и отправь подружкам!\n"
+                f"Узнайте насколько хорошо вы друг друга знаете 🎯\n\n"
                 f"🎁 *Бесплатно:* {FREE_TESTS_LIMIT} тестов\n"
                 f"{tests_info}\n\n"
-                f"💎 Хочешь безлимит? Жми «💎 Премиум»")
+                f"💎 *Premium* открывает:\n"
+                f"♾️ Безлимитные тесты\n"
+                f"🎓 Красивый золотой диплом\n"
+                f"📊 Ответы подруг\n\n"
+                f"👇 *Выбирай действие в меню:*")
     
     await message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user.id))
 
@@ -1210,7 +1217,7 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id != ADMIN_ID:
         await update.message.reply_text("❌ У вас нет доступа!")
         return
-    await update.message.reply_text("🔧 *АДМИН-ПАНЕЛЬ*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
+    await update.message.reply_text("🔧 *АДМИН-ПАНЕЛЬ* ✨\n\nВыбери действие в меню 👇", parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard())
 
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1251,27 +1258,30 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
     
     text = f"""
-📊 *СТАТИСТИКА БОТА*
-━━━━━━━━━━━━━━━━━━
+📊✨ *СТАТИСТИКА БОТА* ✨📊
+🕒 {datetime.now().strftime('%d.%m.%Y %H:%M')}
+━━━━━━━━━━━━━━━━━━━━━━
 
-👥 *Пользователи*
-├ Всего: *{total_users}*
-├ Сегодня: *+{new_today}*
-├ За неделю: *+{new_week}*
-└ За месяц: *+{new_month}*
+👥 *ПОЛЬЗОВАТЕЛИ*
+├ 👑 Всего: *{total_users}*
+├ 🆕 Сегодня: *+{new_today}*
+├ 📈 За неделю: *+{new_week}*
+└ 📅 За месяц: *+{new_month}*
 
-💎 *Премиум*
-├ Активных: *{premium_active}*
-├ Всего: *{premium_total}*
-└ Конверсия: *{round(premium_total/max(total_users,1)*100, 1)}%*
+💎 *ПРЕМИУМ*
+├ ✨ Активных: *{premium_active}*
+├ 💰 Всего купили: *{premium_total}*
+└ 📊 Конверсия: *{round(premium_total/max(total_users,1)*100, 1)}%*
 
-📝 *Тесты*
-├ Всего: *{total_tests}*
-└ За месяц: *+{tests_month}*
+📝 *ТЕСТЫ*
+├ 📋 Всего создано: *{total_tests}*
+└ 📅 За месяц: *+{tests_month}*
 
-🎯 *Прохождения*
-├ Всего: *{total_attempts}*
-└ Средний балл: *{avg_score:.1f}%*
+🎯 *ПРОХОЖДЕНИЯ*
+├ 🎮 Всего: *{total_attempts}*
+└ 🎯 Средний балл: *{avg_score:.1f}%*
+
+💡 *АНАЛИЗ:* {'🚀 Бот активно растёт!' if new_week > 100 else '📈 Стабильный рост. Продолжай продвигать!'}
 """
     
     keyboard = InlineKeyboardMarkup([
@@ -1799,7 +1809,7 @@ async def finish_test(query, context):
         creator_id = test['creator_id']
         await context.bot.send_message(
             chat_id=creator_id,
-            text=f"🎉 *{user.first_name}* прошла твой тест «{test['title']}»!\n🎯 Результат: *{score:.0f}%*\n🏆 Статус: *{status}*",
+            text=f"🎉💖 *УРА! ТВОЙ ТЕСТ ПРОШЛИ!* 💖🎉\n\n👤 *{user.first_name}* только что прошла твой тест\n📝 «{test['title']}»\n🎯 *Результат:* {score:.0f}%\n🏆 *Статус:* {status}\n\n✨ *Зайди в «👑 Мои тесты» чтобы посмотреть ответы!* ✨",
             parse_mode=ParseMode.MARKDOWN
         )
     except:
@@ -1820,7 +1830,7 @@ async def finish_test(query, context):
     
     analysis_image = await generate_friendship_analysis(user.first_name, test['creator_name'], test['title'], score, status, prediction, categories_stats)
     
-    caption = f"🎉✨ *ТЕСТ ПРОЙДЕН!* ✨🎉\n\n💕 *{user.first_name}*, ты супер!"
+    caption = f"🎉✨ *ТЕСТ ПРОЙДЕН!* ✨🎉\n\n💕 *{user.first_name}*, ты просто супер!\n🔥 *Поделись этим анализом с {test['creator_name']}!* 🔥"
     
     await query.message.reply_photo(analysis_image, caption=caption, parse_mode=ParseMode.MARKDOWN)
     
@@ -1828,9 +1838,9 @@ async def finish_test(query, context):
         await asyncio.sleep(0.5)
         try:
             if test.get('greeting_type') == 'voice':
-                await query.message.reply_voice(test['greeting_file_id'])
+                await query.message.reply_voice(test['greeting_file_id'], caption=f"🎬✨ СЮРПРИЗ ОТ {test['creator_name'].upper()}! ✨🎬\n💕 Она приготовила для тебя особенное послание...", parse_mode=ParseMode.MARKDOWN)
             elif test.get('greeting_type') == 'video':
-                await query.message.reply_video(test['greeting_file_id'])
+                await query.message.reply_video(test['greeting_file_id'], caption=f"🎬✨ СЮРПРИЗ ОТ {test['creator_name'].upper()}! ✨🎬\n💕 Она приготовила для тебя особенное послание...", parse_mode=ParseMode.MARKDOWN)
             media_manager.mark_as_viewed(test['greeting_file_id'], user.id, test['id'])
         except Exception as e:
             logger.error(f"Ошибка отправки поздравления: {e}")
@@ -1844,16 +1854,27 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tests = get_user_tests(user_id)
     
     if not tests:
-        await update.message.reply_text("🌸 *У тебя пока нет тестов!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
+        await update.message.reply_text(
+            "👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
+            "🌸 *У тебя пока нет тестов!*\n\n"
+            "💕 Создай свой первый тест о себе\n"
+            "и отправь подружкам! Пусть узнают\n"
+            "насколько хорошо они тебя знают 🎯\n\n"
+            "👇 *Нажми кнопку ниже чтобы создать:*",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=ReplyKeyboardMarkup([["🌸 Создать тест"]], resize_keyboard=True)
+        )
         return
     
-    text = "👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
+    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 *Создано тестов:* {len(tests)}\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
     keyboard = []
-    for t in tests:
+    for i, t in enumerate(tests, 1):
         word = decline_friend_word(t['attempts'])
-        text += f"📝 *{t['title'][:30]}* — {t['attempts']} {word}\n"
-        keyboard.append([InlineKeyboardButton(f"📝 {t['title'][:30]}", callback_data=f"mytest_{t['id']}")])
+        status = "🔥 ПОПУЛЯРНЫЙ" if t['attempts'] >= 5 else "⭐ АКТИВНЫЙ" if t['attempts'] >= 2 else "🆕 НОВЫЙ"
+        text += f"{i}. 📝 *{t['title'][:30]}*\n   👥 Прошли: *{t['attempts']}* {word}\n   📊 Статус: {status}\n   📅 Создан: {t['created_at'][:10]}\n\n"
+        keyboard.append([InlineKeyboardButton(f"📝 {t['title'][:30]} ({t['attempts']} 👥)", callback_data=f"mytest_{t['id']}")])
     
+    text += "👇 *Выбери тест чтобы посмотреть:*"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1862,11 +1883,28 @@ async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     test_id = int(query.data.replace("mytest_", ""))
     test = get_test_by_id(test_id)
     if not test:
-        await query.message.reply_text("💔 Тест не найден")
+        await query.message.reply_text("💔 *Тест не найден*\n\nВозможно он был удалён или истёк срок хранения", parse_mode=ParseMode.MARKDOWN)
         return
     attempts = get_test_attempts(test_id)
     avg_score = sum(a['score'] for a in attempts) / len(attempts) if attempts else 0
-    text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)}\n🎯 Средний: {avg_score:.0f}%"
+    max_score = max(a['score'] for a in attempts) if attempts else 0
+    
+    status = "🔥 СУПЕР-ПОПУЛЯРНЫЙ!" if len(attempts) >= 10 else "⭐ ПОПУЛЯРНЫЙ!" if len(attempts) >= 5 else "🌸 НАБИРАЕТ ПОПУЛЯРНОСТЬ" if len(attempts) >= 2 else "🆕 ЖДЁТ ПОДРУГ"
+    
+    text = f"📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += f"📊 *СТАТУС ТЕСТА:* {status}\n\n"
+    text += f"👥 Прошли: {len(attempts)} {decline_friend_word(len(attempts))}\n"
+    text += f"🎯 Средний результат: {avg_score:.0f}%\n"
+    if attempts:
+        text += f"👑 Лучший результат: {max_score:.0f}%\n"
+    text += f"❓ Вопросов в тесте: {len(test['questions'])}\n"
+    if test.get('greeting_file_id'):
+        text += "🎬 Поздравление: ЕСТЬ ✨\n"
+    if test.get('question_photos') and test['question_photos'] != '{}':
+        photos_count = len(json.loads(test['question_photos']))
+        text += f"📸 Фото в тесте: {photos_count}\n"
+    text += "\n👇 *Что хочешь сделать с тестом?*"
+    
     await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
 
 # === ПРЕМИУМ ===
@@ -1877,9 +1915,22 @@ async def premium_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_prem:
         user = get_user(user_id)
         expiry = datetime.fromisoformat(user['premium_until']).strftime('%d.%m.%Y')
-        text = f"💎✨ *У ТЕБЯ ПРЕМИУМ!* ✨💎\n\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n📅 *Действует до:* {expiry}"
+        text = (f"💎✨ *У ТЕБЯ ПРЕМИУМ!* ✨💎\n\n"
+                f"♾️ Безлимитные тесты\n"
+                f"🎓 Красивый золотой диплом\n"
+                f"📊 Смотреть ответы подруг\n\n"
+                f"📅 *Действует до:* {expiry}\n\n"
+                f"💕 *Создавай тесты и проверяй подруг!*")
     else:
-        text = "💎 *ПРЕМИУМ*\n\n✨ Что даёт:\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n💰 *Стоимость:*\n• 99₽ — 15 дней\n• 149₽ — месяц"
+        text = ("💎 *ПРЕМИУМ ПОДПИСКА*\n\n"
+                "✨ *Что даёт:*\n"
+                "♾️ Безлимитные тесты\n"
+                "🎓 Красивый золотой диплом\n"
+                "📊 Смотреть ответы подруг\n\n"
+                "💰 *Стоимость:*\n"
+                "• 99₽ — 15 дней\n"
+                "• 149₽ — месяц\n\n"
+                "👇 *Выбери тариф и открой все возможности:*")
     
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_keyboard() if not is_prem else get_main_keyboard(user_id))
 
@@ -1905,7 +1956,12 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(f"💎 Оплатить {price_rub}₽", url=payment.confirmation.confirmation_url)]])
     
     await query.message.reply_text(
-        f"💎 *Premium на {days} дней*\n\n💰 *{price_rub}₽*\n👇 Нажми для оплаты",
+        f"💎 *Premium на {days} дней*\n\n"
+        f"💰 *{price_rub}₽*\n"
+        f"✨ Безлимитные тесты\n"
+        f"🎓 Золотой диплом\n"
+        f"📊 Ответы подруг\n\n"
+        f"👇 *Нажми на кнопку для оплаты:*",
         parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
     )
 
@@ -1968,19 +2024,19 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         data = context.user_data.get('creating_test')
         if data and data.get('step') == 'collecting_options' and len(data.get('current_options', [])) < MAX_OPTIONS:
             data['waiting_for_option'] = True
-            await update.message.reply_text(f"✏️ *Напиши вариант №{len(data['current_options']) + 1}:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+            await update.message.reply_text(f"✏️ *Напиши вариант №{len(data['current_options']) + 1}:*\n\n💡 *Совет:* Варианты должны быть разными и понятными", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
     elif text == "✅ Готово":
         data = context.user_data.get('creating_test')
         if data and data.get('step') == 'collecting_options':
             options = data.get('current_options', [])
             if len(options) < 2:
-                await update.message.reply_text("⚠️ *Минимум 2 варианта!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                await update.message.reply_text("⚠️ *Минимум 2 варианта!* Добавь ещё один вариант ответа", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
                 data['waiting_for_option'] = True
                 return
             keyboard = []
             for i, opt in enumerate(options):
                 keyboard.append([InlineKeyboardButton(f"{i+1}. {opt[:30]}", callback_data=f"correct_{i}")])
-            await update.message.reply_text(f"❓ *Вопрос:* {data['current_question']}\n\n👇 *Какой вариант ПРАВИЛЬНЫЙ?*", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
+            await update.message.reply_text(f"❓ *Вопрос:* {data['current_question']}\n\n👇 *Какой вариант ПРАВИЛЬНЫЙ?* 👇\n\nВыбери тот ответ, который описывает ТЕБЯ:", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
             data['waiting_for_option'] = False
     else:
         data = context.user_data.get('creating_test')
@@ -1991,26 +2047,28 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text = update.message.text.strip()
                 if len(text) < 5:
                     await update.message.reply_text("⚠️ Вопрос должен быть длиннее 5 символов!")
-                    return
-                data['current_question'] = text
-                data['waiting_custom_question'] = False
-                data['current_options'] = []
-                data['step'] = 'collecting_options'
-                data['waiting_for_option'] = True
-                await update.message.reply_text(f"✅ *Вопрос сохранён!*\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+                elif len(text) > 150:
+                    await update.message.reply_text("⚠️ Вопрос слишком длинный! До 150 символов.")
+                else:
+                    data['current_question'] = text
+                    data['waiting_custom_question'] = False
+                    data['current_options'] = []
+                    data['step'] = 'collecting_options'
+                    data['waiting_for_option'] = True
+                    await update.message.reply_text(f"✅ *Вопрос сохранён!*\n\n📝 *Твой вопрос:* {text}\n\n✏️ *Напиши вариант ответа №1:*\n\n💡 *Совет:* Варианты должны быть разными и понятными", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
             elif data.get('step') == 'collecting_options' and data.get('waiting_for_option'):
                 await handle_create_test(update, context)
             elif data.get('step') == 'collecting_options' and not data.get('waiting_for_option'):
                 option_text = text.strip()
                 if len(option_text) > 50:
-                    await update.message.reply_text("⚠️ *Слишком длинный вариант!*")
+                    await update.message.reply_text("⚠️ *Слишком длинный вариант!* До 50 символов.")
                     return
                 data['current_options'].append(option_text)
                 options_list = "\n".join([f"{i+1}. {o}" for i, o in enumerate(data['current_options'])])
                 if len(data['current_options']) >= MAX_OPTIONS:
-                    await update.message.reply_text(f"✅ *Достигнут максимум!*\n\n{options_list}\nНажми «✅ Готово»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                    await update.message.reply_text(f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n📋 *Твои варианты:*\n{options_list}\n\n🎯 *Достигнут максимум!* Нажми «✅ Готово» чтобы продолжить.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
                 else:
-                    await update.message.reply_text(f"✅ *Вариант добавлен!*\n\n{options_list}\n\n➕ Добавь ещё или нажми «✅ Готово»", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                    await update.message.reply_text(f"✅ *Вариант {len(data['current_options'])} добавлен!*\n\n📋 *Твои варианты:*\n{options_list}\n\n➕ *Можешь добавить ещё или нажать «Готово»*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
             else:
                 await handle_create_test(update, context)
 
@@ -2059,92 +2117,323 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         test_id = int(data.replace("view_", ""))
         test = get_test_by_id(test_id)
         if test:
-            text = f"📝 *{test['title']}*\n\n*Вопросы и ответы:*\n"
+            text = f"👁✨ *ПРОСМОТР ТЕСТА* ✨👁\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n📋 *ТВОИ ВОПРОСЫ И ОТВЕТЫ:*\n\n"
             for i, q in enumerate(test['questions'], 1):
-                text += f"\n*{i}. {q}*\n"
+                text += f"*{i}. {q}*\n"
                 for j, opt in enumerate(test['options'][i-1]):
                     prefix = "✅" if j == test['correct_answers'][i-1] else "➖"
                     text += f"   {prefix} {opt}\n"
-            await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN)
+                text += "\n"
+            text += "━━━━━━━━━━━━━━━━━━━━━━\n💡 *Подсказка:* Отправь тест подругам\nи узнай кто знает тебя лучше всех! 💕"
+            await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📤 Поделиться", callback_data=f"share_{test_id}")], [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{test_id}")]]))
     elif data.startswith("back_to_test_"):
         test_id = int(data.replace("back_to_test_", ""))
         test = get_test_by_id(test_id)
         if test:
             attempts = get_test_attempts(test_id)
             avg_score = sum(a['score'] for a in attempts) / len(attempts) if attempts else 0
-            text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)}\n🎯 Средний: {avg_score:.0f}%"
+            text = f"📝 *{test['title']}*\n\n👥 Прошли: {len(attempts)}\n🎯 Средний: {avg_score:.0f}%\n\n👇 Выбери действие:"
             await query.message.edit_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_test_actions_keyboard(test_id))
     elif data.startswith("share_"):
         test_id = int(data.replace("share_", ""))
-        await query.message.reply_text("📤 *Поделись с подругой!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id))
+        user_id = query.from_user.id
+        
+        if not is_premium(user_id):
+            conn = get_db()
+            c = conn.cursor()
+            c.execute('UPDATE users SET tests_created = tests_created + 1 WHERE user_id = ?', (user_id,))
+            conn.commit()
+            user_data = get_user(user_id)
+            remaining = FREE_TESTS_LIMIT - user_data.get('tests_created', 0)
+            conn.close()
+            
+            if remaining >= 0:
+                word = decline_word(remaining, "тест", "теста", "тестов")
+                spent_info = f"\n\n📦 *Списан 1 тест*\n📊 *Осталось:* {remaining} {word}"
+            else:
+                spent_info = f"\n\n📦 *Списан 1 тест*\n⚠️ *Лимит превышен!* Купи Премиум"
+        else:
+            spent_info = "\n\n💎 *Премиум — безлимитные отправки!* ♾️"
+        
+        await query.message.reply_text(
+            f"📤✨ *ПОДЕЛИСЬ ТЕСТОМ!* ✨📤\n\n"
+            f"💕 Отправь тест подруге и узнай\n"
+            f"насколько хорошо она тебя знает!\n\n"
+            f"🎯 Чем больше подруг пройдут тест —\n"
+            f"тем интереснее будет битва за звание\n"
+            f"самой лучшей подруги! 👑"
+            f"{spent_info}\n\n"
+            f"👇 *Нажми на кнопку ниже:*",
+            parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(test_id)
+        )
     elif data.startswith("answers_"):
         test_id = int(data.replace("answers_", ""))
         if not is_premium(query.from_user.id):
-            await query.answer("💎 Только для ПРЕМИУМ!", show_alert=True)
+            await query.answer("💎 Только для ПРЕМИУМ! Открой все секреты подруг ✨", show_alert=True)
             return
+        
         test = get_test_by_id(test_id)
         attempts = get_test_attempts(test_id)
+        
         if not attempts:
-            await query.message.reply_text("👻 *Пока никто не прошёл тест*", parse_mode=ParseMode.MARKDOWN)
+            await query.message.reply_text(
+                "📊✨ *ОТВЕТЫ ПОДРУГ* ✨📊\n\n"
+                "👻 *Пока никто не прошёл тест!*\n\n"
+                "💕 Отправь ссылку подружкам и узнай\n"
+                "все их секретные ответы! 🔍\n\n"
+                "📤 *Поделись тестом прямо сейчас* 👇",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("💕 Отправить подруге", callback_data=f"share_{test_id}")
+                ]])
+            )
             return
-        text = f"📊 *ОТВЕТЫ ПОДРУГ*\n\n📝 *{test['title']}*\n\n"
+        
+        sorted_attempts = sorted(attempts, key=lambda x: x['score'], reverse=True)
+        
+        text = f"📊✨ *ОТВЕТЫ ПОДРУГ* ✨📊\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n👥 *Твои подруги прошли тест:*\n\n"
+        
+        for a in sorted_attempts[:10]:
+            score = a['score']
+            if score >= 90: emoji, hint = '👑', 'Знает тебя наизусть! 💕'
+            elif score >= 70: emoji, hint = '💎', 'Отлично знает тебя! ✨'
+            elif score >= 50: emoji, hint = '🌸', 'Хорошо знает тебя! 🌟'
+            elif score >= 30: emoji, hint = '🌱', 'Узнаёт тебя лучше! 💫'
+            else: emoji, hint = '🦋', 'Только знакомится! 🌈'
+            text += f"{emoji} *{a['friend_name']}* — *{score:.0f}%*\n   💬 _{hint}_\n\n"
+        
+        text += f"━━━━━━━━━━━━━━━━━━━━━━\n\n💡 *Нажми на подругу чтобы увидеть:*\n🔍 Все её ответы на вопросы\n📊 Детальную статистику\n🔮 Предсказание дружбы\n\n👇 *Выбери подругу:*"
+        
         keyboard = []
-        for a in attempts[:10]:
-            text += f"👤 *{a['friend_name']}*: {a['score']:.0f}%\n"
-            keyboard.append([InlineKeyboardButton(f"👤 {a['friend_name']}: {a['score']:.0f}%", callback_data=f"friend_details_{test_id}_{a['friend_name']}")])
+        for a in sorted_attempts[:10]:
+            score = a['score']
+            icon = '👑' if score >= 80 else '💎' if score >= 60 else '🌸'
+            keyboard.append([InlineKeyboardButton(f"{icon} {a['friend_name'][:20]}: {score:.0f}%", callback_data=f"friend_details_{test_id}_{a['friend_name']}")])
+        
+        keyboard.append([InlineKeyboardButton("📈 Общая статистика", callback_data=f"stats_friendship_{test_id}"), InlineKeyboardButton("⚔️ Битва подруг", callback_data=f"battle_{test_id}")])
+        keyboard.append([InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{test_id}")])
+        
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(keyboard))
     elif data.startswith("friend_details_"):
         parts = data.split("_", 2)
         test_id = int(parts[2].split("_")[0])
-        friend_name = parts[2].split("_", 1)[1] if "_" in parts[2] else parts[2]
+        friend_name = "_".join(parts[2].split("_")[1:]) if "_" in parts[2].split("_", 1)[-1] else parts[2].split("_")[-1]
+        
         test = get_test_by_id(test_id)
         attempts = get_test_attempts(test_id)
         attempt = next((a for a in attempts if a['friend_name'] == friend_name), None)
+        
         if not attempt:
             await query.answer("❌ Ответы не найдены", show_alert=True)
             return
-        text = f"👤 *{friend_name}*\n🎯 *{attempt['score']:.0f}%*\n\n"
+        
+        score = attempt['score']
+        level, description = get_detailed_stats(score)
+        prediction = get_friendship_prediction(score, friend_name)
+        correct_count = sum(1 for i, ans in enumerate(attempt['answers']) if i < len(test['correct_answers']) and ans == test['correct_answers'][i])
+        total_q = len(test['questions'])
+        
+        text = f"🔮✨ *ДЕТАЛЬНЫЙ АНАЛИЗ* ✨🔮\n\n👤 *{friend_name}*\n📝 Тест: *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n🎯 *Результат:* {score:.0f}%\n🏆 *Уровень:* {level}\n📊 *{description}*\n✅ Правильно: *{correct_count}* из *{total_q}*\n\n"
+        
+        if score >= 90:
+            text += "👑 *СЁСТРЫ НАВЕК!*\n💕 Вы как две половинки одного целого!\n_Твоя душа знает твою душу_ ✨\n\n"
+        elif score >= 70:
+            text += "💎 *ЛУЧШИЕ ПОДРУГИ!*\n🌸 Вы понимаете друг друга почти без слов!\n_Цени эту дружбу — она особенная_ 💫\n\n"
+        elif score >= 50:
+            text += "🌟 *ХОРОШИЕ ПОДРУГИ!*\n🌱 Вы на правильном пути!\n_Ещё немного и вы станете ближе_ 💕\n\n"
+        else:
+            text += "🦋 *ЗНАКОМЫЕ!*\n🌈 Впереди много интересного!\n_Узнавайте друг друга постепенно_ ✨\n\n"
+        
+        text += f"🔮 *ПРЕДСКАЗАНИЕ ДРУЖБЫ:*\n_{prediction}_\n\n━━━━━━━━━━━━━━━━━━━━━━\n📋 *ВСЕ ОТВЕТЫ:*\n\n"
+        
+        comments = json.loads(test.get('answer_comments', '{}')) if test.get('answer_comments') else {}
+        
         for i, q in enumerate(test['questions']):
             text += f"*{i+1}. {q}*\n"
             if i < len(attempt['answers']):
-                user_ans = test['options'][i][attempt['answers'][i]] if attempt['answers'][i] < len(test['options'][i]) else "❓"
-                correct_ans = test['options'][i][test['correct_answers'][i]]
-                is_correct = attempt['answers'][i] == test['correct_answers'][i]
-                text += f"   {'✅' if is_correct else '❌'} *{user_ans}*\n"
-                if not is_correct:
-                    text += f"   ✅ *Правильно: {correct_ans}*\n"
+                user_ans_idx = attempt['answers'][i]
+                correct_idx = test['correct_answers'][i]
+                is_correct = user_ans_idx == correct_idx
+                if user_ans_idx < len(test['options'][i]):
+                    user_ans = test['options'][i][user_ans_idx]
+                    correct_ans = test['options'][i][correct_idx]
+                    if is_correct:
+                        text += f"   ✅ *{user_ans}*\n"
+                    else:
+                        text += f"   ❌ Ответила: *{user_ans}*\n   ✅ Правильно: *{correct_ans}*\n"
+                if str(i) in comments:
+                    text += f"   💬 _{comments[str(i)]}_\n"
             text += "\n"
-        await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN)
+        
+        if score >= 80:
+            text += f"💕 *ИТОГ:* {friend_name} — твоя родственная душа!\n_Вы созданы друг для друга! Берегите эту дружбу!_ ✨"
+        elif score >= 60:
+            text += f"🌸 *ИТОГ:* {friend_name} — отличная подруга!\n_Продолжайте узнавать друг друга и становиться ближе!_ 💫"
+        else:
+            text += f"🌱 *ИТОГ:* Вы только начинаете узнавать друг друга!\n_Проводите больше времени вместе — это сближает!_ 💕"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚔️ Битва подруг", callback_data=f"battle_{test_id}"), InlineKeyboardButton("📈 Статистика", callback_data=f"stats_friendship_{test_id}")],
+            [InlineKeyboardButton("🔙 К списку подруг", callback_data=f"answers_{test_id}")]
+        ])
+        
+        await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
     elif data.startswith("battle_"):
         test_id = int(data.replace("battle_", ""))
+        test = get_test_by_id(test_id)
         attempts = get_test_attempts(test_id)
+        
         if len(attempts) < 2:
-            await query.message.reply_text("⚔️ *Нужно минимум 2 подруги!*", parse_mode=ParseMode.MARKDOWN)
+            await query.message.reply_text(
+                "⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n"
+                "😢 *Недостаточно участниц!*\n\n"
+                "👯‍♀️ Нужно минимум 2 подруги чтобы устроить\n"
+                "эпичное сражение за звание лучшей! 👑\n\n"
+                "📤 *Отправь тест ещё одной подруге:*",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("💕 Поделиться", callback_data=f"share_{test_id}")
+                ]])
+            )
             return
+        
         sorted_attempts = sorted(attempts, key=lambda x: x['score'], reverse=True)
-        text = "⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n"
+        
+        text = f"⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n🏆 *ТУРНИРНАЯ ТАБЛИЦА:*\n\n"
+        
         medals = ["🥇", "🥈", "🥉"]
-        for i, a in enumerate(sorted_attempts[:5], 1):
-            medal = medals[i-1] if i <= 3 else f"{i}."
-            text += f"{medal} *{a['friend_name']}*: {a['score']:.0f}%\n"
-        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+        descriptions = [
+            "👑 *Королева знаний!* Знает тебя лучше всех!",
+            "💎 *Бриллиантовая подруга!* Почти идеально!",
+            "🌟 *Золотая середина!* Отличный результат!",
+            "🌸 *Прелестно!* Старается изо всех сил!",
+            "🌱 *Растёт!* Становится ближе с каждым днём!"
+        ]
+        
+        for i, a in enumerate(sorted_attempts[:5]):
+            medal = medals[i] if i < 3 else f"  {i+1}."
+            score = a['score']
+            status = get_friendship_status(score)
+            bar = "💜" * int(score / 10) + "🤍" * (10 - int(score / 10))
+            
+            text += f"{medal} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n   🏆 Статус: *{status}*\n   {descriptions[i] if i < len(descriptions) else '💫 Продолжай узнавать!'}\n\n"
+        
+        text += "━━━━━━━━━━━━━━━━━━━━━━\n\n⚡ *ПРОТИВОСТОЯНИЕ ЛИДЕРОВ:*\n\n"
+        
+        if len(sorted_attempts) >= 2:
+            first, second = sorted_attempts[0], sorted_attempts[1]
+            diff = first['score'] - second['score']
+            
+            text += f"🥇 *{first['friend_name']}* vs 🥈 *{second['friend_name']}*\n📊 Разрыв: *{diff:.0f}%*\n\n"
+            
+            if diff >= 30:
+                text += f"👑 *ТОТАЛЬНОЕ ДОМИНИРОВАНИЕ!*\n{first['friend_name']} знает тебя в разы лучше!\nОна не просто подруга — она СЕСТРА! 💕\n_Вы понимаете друг друга без слов_ ✨\n"
+            elif diff >= 15:
+                text += f"💪 *УВЕРЕННОЕ ЛИДЕРСТВО!*\n{first['friend_name']} впереди, но {second['friend_name']}\nещё может наверстать! 🔥\n_Устройте реванш через неделю!_ 🎯\n"
+            elif diff >= 5:
+                text += f"⚡ *НАПРЯЖЁННАЯ БОРЬБА!*\nРазрыв минимален! Всё решают детали!\nКто знает твой любимый цвет? А песню? 🎵\n_Интрига сохраняется..._ 👀\n"
+            else:
+                text += f"🎯 *ФОТОФИНИШ!*\nПрактически ОДИНАКОВЫЙ результат!\nОбе подруги знают тебя на отлично! 💕💕\n_Ты окружена замечательными людьми!_ ✨\n"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📈 Статистика", callback_data=f"stats_friendship_{test_id}"), InlineKeyboardButton("📊 Ответы", callback_data=f"answers_{test_id}")],
+            [InlineKeyboardButton("👑 Детали победителя", callback_data=f"friend_details_{test_id}_{first['friend_name']}")],
+            [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{test_id}")]
+        ])
+        
+        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
     elif data.startswith("stats_friendship_"):
         test_id = int(data.replace("stats_friendship_", ""))
+        test = get_test_by_id(test_id)
         attempts = get_test_attempts(test_id)
+        
         if not attempts:
-            await query.message.reply_text("📈 *Пока никто не прошёл тест!*", parse_mode=ParseMode.MARKDOWN)
+            await query.message.reply_text(
+                "📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n"
+                "😢 *Пока никто не прошёл тест!*\n\n"
+                "🌸 Отправь ссылку подружкам и узнай,\n"
+                "кто знает тебя лучше всех! 💕",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("💕 Поделиться с подругами", callback_data=f"share_{test_id}")
+                ]])
+            )
             return
-        text = "📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n"
-        for a in attempts[:10]:
+        
+        sorted_attempts = sorted(attempts, key=lambda x: x['score'], reverse=True)
+        avg_score = sum(a['score'] for a in attempts) / len(attempts)
+        max_score = max(a['score'] for a in attempts)
+        min_score = min(a['score'] for a in attempts)
+        
+        text = f"📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n👥 *Твои подруги прошли тест:*\n\n"
+        
+        predictions = [
+            "💕 Она твоя родственная душа! ✨",
+            "🌸 Настоящая bestie! Цени эту дружбу 💎",
+            "🌟 Отличная подруга! Вы на одной волне 🎵",
+            "🌱 Хорошая знакомая! Узнавайте друг друга 💫",
+            "🤝 Приятельница! Впереди много интересного 🌈",
+            "🦋 Новая знакомая! Всё только начинается 💖"
+        ]
+        
+        for i, a in enumerate(sorted_attempts[:10]):
             score = a['score']
             bar = "█" * int(score / 10) + "░" * (10 - int(score / 10))
-            emoji = "💕" if score >= 80 else "🌸" if score >= 60 else "👋" if score >= 40 else "🤔"
-            text += f"{emoji} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n\n"
-        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+            
+            if score >= 90: emoji, status, pred = '👑', 'ЭКСПЕРТ', predictions[0]
+            elif score >= 80: emoji, status, pred = '💎', 'СУПЕР', predictions[0]
+            elif score >= 70: emoji, status, pred = '💕', 'ЛУЧШАЯ ПОДРУГА', predictions[1]
+            elif score >= 60: emoji, status, pred = '🌸', 'ХОРОШАЯ ПОДРУГА', predictions[2]
+            elif score >= 50: emoji, status, pred = '🌟', 'ЗНАЕТ ТЕБЯ', predictions[3]
+            elif score >= 40: emoji, status, pred = '🌱', 'УЗНАЁТ ТЕБЯ', predictions[4]
+            elif score >= 30: emoji, status, pred = '🤝', 'ЗНАКОМАЯ', predictions[5]
+            else: emoji, status, pred = '🦋', 'НОВАЯ ЗНАКОМАЯ', predictions[5]
+            
+            text += f"{emoji} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n   🏆 Уровень: *{status}*\n   💬 _{pred}_\n\n"
+        
+        text += f"━━━━━━━━━━━━━━━━━━━━━━\n\n📊 *ОБЩАЯ СТАТИСТИКА:*\n\n"
+        text += f"👥 Прошли тест: *{len(attempts)}* {decline_friend_word(len(attempts))}\n"
+        text += f"📈 Средний результат: *{avg_score:.0f}%*\n"
+        text += f"👑 Лучший результат: *{max_score:.0f}%* — *{sorted_attempts[0]['friend_name']}* 💕\n"
+        text += f"💔 Худший результат: *{min_score:.0f}%*\n\n"
+        
+        if len(attempts) >= 2:
+            best, second = sorted_attempts[0], sorted_attempts[1]
+            diff = best['score'] - second['score']
+            
+            text += f"⚡ *БИТВА ЛУЧШИХ ПОДРУГ:*\n"
+            text += f"🥇 *{best['friend_name']}* — {best['score']:.0f}%\n"
+            text += f"🥈 *{second['friend_name']}* — {second['score']:.0f}%\n\n"
+            
+            if diff >= 20:
+                text += f"👑 *{best['friend_name']}* знает тебя НАМНОГО лучше!\nОна настоящая soulmate! Береги её 💕\n"
+            elif diff >= 10:
+                text += f"💪 *{best['friend_name']}* уверенно лидирует!\nНо {second['friend_name']} дышит в спину 🔥\n"
+            elif diff >= 5:
+                text += f"⚡ Напряжённая борьба!\nРазрыв минимален! Устройте реванш 🎯\n"
+            else:
+                text += f"🎯 Практически ОДИНАКОВЫЙ результат!\nОбе подруги знают тебя отлично! 💕💕\n"
+        
+        if avg_score >= 80:
+            text += f"\n💕 *Вау! Тебя ОТЛИЧНО знают!*\nТы открытая и искренняя душа компании!\nПодруги тебя обожают и понимают с полуслова ✨\n\n🌟 *Совет:* Ты rare find! Продолжай сиять!\n"
+        elif avg_score >= 60:
+            text += f"\n🌸 *Тебя ХОРОШО знают!*\nТы интересная и загадочная личность.\nПодруги тянутся к тебе и хотят узнать лучше 💫\n\n💡 *Совет:* Расскажи о своих мечтах — это сближает!\n"
+        elif avg_score >= 40:
+            text += f"\n🌱 *Тебя УЗНАЮТ всё лучше!*\nТы как захватывающая книга — интересно,\nно ещё не всё прочитано 📖\n\n💡 *Совет:* Устройте совместную прогулку или созвон!\n"
+        else:
+            text += f"\n🦋 *Вы только НАЧИНАЕТЕ дружить!*\nЭто самое волшебное время — первые секреты,\nпервые шутки и первые совместные фото 📸\n\n💡 *Совет:* Поделись своими любимыми треками!\n"
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚔️ Битва подруг", callback_data=f"battle_{test_id}"), InlineKeyboardButton("📊 Ответы", callback_data=f"answers_{test_id}")],
+            [InlineKeyboardButton("🔮 Детальный анализ", callback_data=f"friend_details_{test_id}_{sorted_attempts[0]['friend_name']}")],
+            [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{test_id}")]
+        ])
+        
+        await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
     elif data.startswith("delete_"):
         test_id = int(data.replace("delete_", ""))
         delete_test(query.from_user.id, test_id)
-        await query.message.reply_text("🗑 Тест удалён!", reply_markup=get_main_keyboard(query.from_user.id))
+        await query.message.reply_text("🗑 Тест удалён! Создай новый и проверь подруг снова 💕", reply_markup=get_main_keyboard(query.from_user.id))
     elif data in ["buy_15days", "buy_month"]:
         await buy_premium(update, context)
     elif data == "admin_refresh_stats":
@@ -2259,7 +2548,7 @@ async def save_greeting(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['current_question_index'] = 0
     data['_pending_media'] = {'file_id': file_id, 'file_type': greeting_type, 'file_size': file_size, 'duration': duration}
     
-    await update.message.reply_text("✅ *Поздравление сохранено!*\n✨ *Приступаем к вопросам!*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
+    await update.message.reply_text(f"✅ *Поздравление сохранено!* ({file_size/1024:.0f} KB, {duration:.0f} сек)\n\n✨ *Приступаем к вопросам!* ✨", parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(user_id))
     await show_question_for_selection(update, context)
 
 async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2285,7 +2574,7 @@ async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data['current_options'] = []
     data['waiting_for_option'] = True
     
-    await update.message.reply_text("✅ *Фото добавлено!*\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    await update.message.reply_text("✅ *Фото добавлено!* 📸\n\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def show_question_for_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('creating_test')
@@ -2368,7 +2657,7 @@ async def select_correct(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not data:
         return
     await query.message.reply_text(
-        "💬 *Хочешь добавить комментарий?*\nНапиши или нажми «Пропустить»",
+        "💬 *Хочешь добавить комментарий к правильному ответу?*\n\nНапиши комментарий или нажми «Пропустить»\n\n*Пример:* «Да, я обожаю этот цвет!»",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭️ Пропустить", callback_data=f"skip_comment_{correct_idx}")]])
     )
