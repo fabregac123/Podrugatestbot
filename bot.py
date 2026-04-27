@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 9.8 — ВСЕ ИСПРАВЛЕНИЯ
+Версия: 9.9 — ФИНАЛЬНЫЕ ПРАВКИ
 """
 
 import logging
@@ -43,7 +43,6 @@ MAX_OPTIONS = 4
 ADMIN_ID = 710623393
 BOT_START_TIME = time.time()
 
-# ЮKassa настройки
 SHOP_ID = os.getenv("YOOKASSA_SHOP_ID", "1337862")
 SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY", "")
 Configuration.account_id = SHOP_ID
@@ -52,13 +51,11 @@ Configuration.secret_key = SECRET_KEY
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === PSUTIL ДЛЯ МОНИТОРИНГА ===
 try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    logger.warning("psutil не установлен. Мониторинг сервера будет недоступен")
 
 # === СКЛОНЕНИЕ СЛОВ ===
 def decline_word(number, word1, word2, word3):
@@ -860,140 +857,121 @@ def add_tests_to_user(user_id, count):
 # === ДИПЛОМ (КРАСИВЫЙ) ===
 async def generate_friendship_analysis(user_name, creator_name, test_title, score, status, prediction, categories_stats):
     clean_status = status.replace(' 👑','').replace(' 💎','').replace(' 🌸','').replace(' 🌱','').replace(' 🦋','')
-    W, H = 1200, 1600
+    W, H = 1080, 1920
     image = Image.new('RGB', (W, H), '#FFFFFF')
     draw = ImageDraw.Draw(image)
     
     for y in range(H):
         ratio = y / H
-        r = int(255 - 30 * ratio)
-        g = int(220 - 60 * ratio)
-        b = int(240 - 40 * ratio)
+        r = int(255 - 15 * ratio)
+        g = int(235 - 40 * ratio)
+        b = int(250 - 25 * ratio)
         draw.line([(0, y), (W, y)], fill=(r, g, b))
     
-    for cx, cy, cr, color in [
-        (150, 200, 180, '#FF6B9D15'), (W-100, 300, 120, '#A855F715'),
-        (80, H-400, 200, '#FFD70010'), (W-50, H-150, 160, '#FF6B9D10'),
-    ]:
-        draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill=color)
+    for x in range(W):
+        y_off = int(30 * (1 + math.sin(x / 100)))
+        draw.line([(x, 0), (x, y_off)], fill='#FFE4EC')
+        y_off = H - int(30 * (1 + math.sin((x + 200) / 100)))
+        draw.line([(x, H), (x, y_off)], fill='#F3E5F5')
+    
+    draw.rectangle([(0, 0), (8, H)], fill='#FFB6C1')
+    draw.rectangle([(W - 8, 0), (W, H)], fill='#FFB6C1')
     
     try:
-        font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90)
-        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 48)
-        font_sub = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 32)
-        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 28)
-        font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 22)
-        font_score = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 120)
+        font_main = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 80)
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 56)
+        font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 42)
+        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 38)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 32)
+        font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 140)
     except:
-        font_big = font_title = font_sub = font_text = font_small = font_score = ImageFont.load_default()
+        font_main = font_title = font_subtitle = font_text = font_small = font_big = ImageFont.load_default()
     
-    PINK = '#FF6B9D'; PURPLE = '#A855F7'; GOLD = '#FFD700'; DARK = '#2D1B4E'
-    WHITE = '#FFFFFF'; GRAY = '#6B7280'; GREEN = '#10B981'; ORANGE = '#F59E0B'; RED = '#EF4444'
+    PINK = '#FF69B4'; PURPLE = '#9C27B0'; GOLD = '#FFD700'; DARK = '#333333'
+    GRAY = '#666666'; LIGHT_GRAY = '#999999'; WHITE = '#FFFFFF'
+    GREEN = '#4CAF50'; ORANGE = '#FF9800'; RED = '#F44336'; BLUE = '#2196F3'
     
-    draw.rectangle([(0, 0), (W, 220)], fill=PINK)
-    for x in range(W):
-        ratio = x / W
-        draw.line([(x, 0), (x, 220)], fill=(int(255-30*ratio), int(107-50*ratio), int(157+30*ratio)))
+    draw.rectangle([(60, 100), (W - 60, 280)], fill=PINK)
+    for y in range(100, 280):
+        ratio = (y - 100) / 180
+        draw.line([(60, y), (W - 60, y)], fill=(int(255 - 40 * ratio), int(105 - 30 * ratio), int(180 + 30 * ratio)))
     
-    for x in [40, W-40]: draw.text((x, 30), "✦", fill=GOLD, font=font_title)
+    for i, x in enumerate([120, W // 2, W - 170]):
+        bbox = draw.textbbox((0, 0), "✦", font=font_subtitle)
+        draw.text((x - (bbox[2] - bbox[0]) // 2, 130), "✦", fill=GOLD, font=font_subtitle)
     
     title = "ДИПЛОМ ДРУЖБЫ"
-    bbox = draw.textbbox((0,0), title, font=font_title)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, 60), title, fill=WHITE, font=font_title)
+    bbox = draw.textbbox((0, 0), title, font=font_main)
+    draw.text((W // 2 - (bbox[2] - bbox[0]) // 2, 200), title, fill=WHITE, font=font_main)
     
-    subtitle = "официальное подтверждение"
-    bbox = draw.textbbox((0,0), subtitle, font=font_small)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, 130), subtitle, fill=WHITE+'AA', font=font_small)
-    
-    cert_y = 170
-    cert_text = "Настоящим подтверждается, что"
-    bbox = draw.textbbox((0,0), cert_text, font=font_small)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, cert_y), cert_text, fill=GRAY, font=font_small)
-    
-    cert_y += 45
-    bbox = draw.textbbox((0,0), user_name, font=font_title)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, cert_y), user_name, fill=DARK, font=font_title)
-    
-    cert_y += 65
-    knows_text = f"знает {creator_name} на"
-    bbox = draw.textbbox((0,0), knows_text, font=font_sub)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, cert_y), knows_text, fill=GRAY, font=font_sub)
-    
-    cert_y += 60
+    y = 340
+    draw.rounded_rectangle([60, y, W - 60, y + 280], radius=20, fill=None, outline=PINK, width=3)
+    y += 30
+    label = "Настоящим подтверждается, что"
+    bbox = draw.textbbox((0, 0), label, font=font_small)
+    draw.text((W // 2 - (bbox[2] - bbox[0]) // 2, y), label, fill=GRAY, font=font_small)
+    y += 70
+    bbox = draw.textbbox((0, 0), user_name, font=font_title)
+    draw.text((W // 2 - (bbox[2] - bbox[0]) // 2, y), user_name, fill=DARK, font=font_title)
+    y += 80
+    knows = f"знает {creator_name} на"
+    bbox = draw.textbbox((0, 0), knows, font=font_text)
+    draw.text((W // 2 - (bbox[2] - bbox[0]) // 2, y), knows, fill=GRAY, font=font_text)
+    y += 70
     score_text = f"{score:.0f}%"
-    bbox = draw.textbbox((0,0), score_text, font=font_score)
-    if score >= 90: sc = GREEN
-    elif score >= 70: sc = '#3B82F6'
-    elif score >= 50: sc = ORANGE
-    else: sc = RED
+    bbox = draw.textbbox((0, 0), score_text, font=font_big)
+    tw = bbox[2] - bbox[0]
+    if score >= 90: color = GREEN
+    elif score >= 70: color = BLUE
+    elif score >= 50: color = ORANGE
+    else: color = RED
+    draw.text((W // 2 - tw // 2 + 3, y + 3), score_text, fill='#00000015', font=font_big)
+    draw.text((W // 2 - tw // 2, y), score_text, fill=color, font=font_big)
+    y += 160
+    bbox = draw.textbbox((0, 0), clean_status, font=font_subtitle)
+    draw.text((W // 2 - (bbox[2] - bbox[0]) // 2, y), clean_status, fill=PURPLE, font=font_subtitle)
     
-    draw.text((W//2 - (bbox[2]-bbox[0])//2 + 4, cert_y + 4), score_text, fill='#00000020', font=font_score)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, cert_y), score_text, fill=sc, font=font_score)
-    
-    cert_y += 160
-    cx, cy, cr = W//2, cert_y, 80
-    draw.ellipse([cx-cr, cy-cr, cx+cr, cy+cr], fill='#F3F4F6')
-    angle = -90 + (score / 100) * 360
-    for a in range(-90, int(angle) + 1):
-        rad = math.radians(a)
-        ex = cx + cr * math.cos(rad)
-        ey = cy + cr * math.sin(rad)
-        draw.line([(cx, cy), (ex, ey)], fill=sc if score>=70 else ORANGE if score>=50 else RED, width=3)
-    draw.ellipse([cx-cr+15, cy-cr+15, cx+cr-15, cy+cr-15], fill=WHITE)
-    
-    cert_y += 120
-    bbox = draw.textbbox((0,0), clean_status, font=font_sub)
-    draw.text((W//2 - (bbox[2]-bbox[0])//2, cert_y), clean_status, fill=PURPLE, font=font_sub)
-    
-    cert_y += 80
-    draw.text((80, cert_y), "📊 ПО КАТЕГОРИЯМ", fill=DARK, font=font_sub)
-    cert_y += 50
-    
+    y = 700
+    draw.text((80, y), "ПО КАТЕГОРИЯМ", fill=DARK, font=font_subtitle)
+    y += 60
     if categories_stats:
         for cat, stats in list(categories_stats.items())[:5]:
             cat_score = stats['correct'] * 100 / stats['total'] if stats['total'] > 0 else 0
-            draw.text((80, cert_y), cat, fill=DARK, font=font_text)
-            bar_w = 400; bar_x = 350; bar_h = 24; bar_y = cert_y + 5
-            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=12, fill='#F3F4F6')
+            draw.text((100, y), cat, fill=DARK, font=font_text)
+            bar_w, bar_x, bar_h, bar_y = 500, W - 600, 32, y + 5
+            draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=16, fill='#F5F5F5')
             fill_w = int(bar_w * cat_score / 100)
             if fill_w > 0:
                 bc = GREEN if cat_score >= 70 else ORANGE if cat_score >= 50 else RED
-                draw.rounded_rectangle([bar_x, bar_y, bar_x+fill_w, bar_y+bar_h], radius=12, fill=bc)
-            draw.text((bar_x+bar_w+15, cert_y-2), f"{cat_score:.0f}%", fill=DARK, font=font_text)
-            cert_y += 55
+                draw.rectangle([bar_x, bar_y, bar_x + fill_w, bar_y + bar_h], fill=bc)
+            draw.text((bar_x + bar_w + 20, y), f"{cat_score:.0f}%", fill=DARK, font=font_text)
+            y += 70
     
-    cert_y += 40
-    draw.text((80, cert_y), "🔮 ПРЕДСКАЗАНИЕ", fill=DARK, font=font_sub)
-    cert_y += 50
-    
+    y += 40
+    draw.text((80, y), "ПРЕДСКАЗАНИЕ", fill=DARK, font=font_subtitle)
+    y += 55
     words = prediction.split(); lines = []; current = []
     for w in words:
         current.append(w)
-        test_line = ' '.join(current)
-        bbox = draw.textbbox((0,0), test_line, font=font_small)
-        if bbox[2] - bbox[0] > W - 200:
+        if draw.textbbox((0, 0), ' '.join(current), font=font_text)[2] > W - 200:
             current.pop(); lines.append(' '.join(current)); current = [w]
     if current: lines.append(' '.join(current))
+    for line in lines: draw.text((100, y), line, fill=GRAY, font=font_text); y += 50
     
-    for line in lines:
-        draw.text((80, cert_y), line, fill=GRAY, font=font_small)
-        cert_y += 35
-    
-    cert_y += 50
-    draw.rectangle([(0, cert_y-20), (W, cert_y+80)], fill=PINK+'20')
-    draw.text((80, cert_y), "✨ Создано в @PodrugaTestBot", fill=PURPLE, font=font_small)
-    cert_y += 30
-    draw.text((80, cert_y), f"📅 {datetime.now().strftime('%d.%m.%Y')}", fill=GRAY, font=font_small)
-    
-    for pos in [(30, 280), (W-60, 250), (30, H-200), (W-60, H-180)]:
-        draw.text(pos, "⭐", fill=GOLD, font=font_big)
-    
+    y = max(y + 80, H - 300)
+    draw.rectangle([(60, y), (W - 60, y + 2)], fill=PINK)
+    y += 40
+    draw.text((100, y), "Создано в @PodrugaTestBot", fill=PURPLE, font=font_small)
+    y += 50
+    draw.text((100, y), datetime.now().strftime("%d.%m.%Y"), fill=LIGHT_GRAY, font=font_small)
     cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
-    draw.text((W-250, 180), f"№ {cert_id}", fill=GRAY+'60', font=font_small)
+    bbox = draw.textbbox((0, 0), f"ID: {cert_id}", font=font_small)
+    draw.text((W - 100 - (bbox[2] - bbox[0]), y), f"ID: {cert_id}", fill=LIGHT_GRAY, font=font_small)
     
-    img_bytes = io.BytesIO()
-    image.save(img_bytes, format='PNG', quality=95)
-    img_bytes.seek(0)
+    for star, (px, py) in zip(["⭐", "🌟", "💫", "✨"], [(80, 620), (W - 120, 620), (80, H - 350), (W - 120, H - 350)]):
+        draw.text((px, py), star, fill=GOLD, font=font_main)
+    
+    img_bytes = io.BytesIO(); image.save(img_bytes, format='PNG', quality=95); img_bytes.seek(0)
     return img_bytes
 
 # === КЛАВИАТУРЫ ===
@@ -1371,29 +1349,28 @@ async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ua = test['options'][current][aidx]; ci = test['correct_answers'][current]; ca = test['options'][current][ci]
     is_correct = aidx == ci; data['answers'].append(aidx)
     
-    # Проверяем комментарий
     comments_raw = test.get('answer_comments')
     comments = json.loads(comments_raw) if comments_raw else {}
     comment = comments.get(str(current), None)
     
     if is_correct:
         correct_messages = [
-            f"🎯 *В ЯБЛОЧКО!* 🎯\n\n✨ Ты ответила: *{ua}*\n\n💕 _И это абсолютно верно! Ты знаешь меня как свои пять пальцев!_ 👑",
-            f"💖 *ТЫ УГАДАЛА!* 💖\n\n✨ Ты ответила: *{ua}*\n\n🌸 _Да-да! Именно так! Ты читаешь мои мысли!_ ✨",
-            f"🌟 *ИДЕАЛЬНЫЙ ОТВЕТ!* 🌟\n\n✨ Ты ответила: *{ua}*\n\n💎 _Ты настоящая подруга! Всё знаешь обо мне!_ 💕",
-            f"🔥 *ТОЧНО!* 🔥\n\n✨ Ты ответила: *{ua}*\n\n👑 _Так держать! Ты лучшая подруга на свете!_ 💫",
-            f"💎 *ПРАВИЛЬНО НА 100%!* 💎\n\n✨ Ты ответила: *{ua}*\n\n🎉 _Ты знаешь меня лучше всех! Я в восторге!_ 🌸",
-            f"👑 *ДА! ЭТО ПРАВДА!* 👑\n\n✨ Ты ответила: *{ua}*\n\n💖 _Ты настоящая soulmate! Мы на одной волне!_ 🦋",
+            f"✅ *ПРАВИЛЬНО!* ✅\n\n✨ Ты ответила: *{ua}*\n\n💕 _И это абсолютно верно! Ты знаешь меня как свои пять пальцев!_",
+            f"✅ *ТЫ УГАДАЛА!* ✅\n\n✨ Ты ответила: *{ua}*\n\n🌸 _Да-да! Именно так! Ты читаешь мои мысли!_",
+            f"✅ *ИДЕАЛЬНЫЙ ОТВЕТ!* ✅\n\n✨ Ты ответила: *{ua}*\n\n💎 _Ты настоящая подруга! Всё знаешь обо мне!_",
+            f"✅ *ТОЧНО!* ✅\n\n✨ Ты ответила: *{ua}*\n\n👑 _Так держать! Ты лучшая подруга на свете!_",
+            f"✅ *ПРАВИЛЬНО НА 100%!* ✅\n\n✨ Ты ответила: *{ua}*\n\n🎉 _Ты знаешь меня лучше всех! Я в восторге!_",
+            f"✅ *ДА! ЭТО ПРАВДА!* ✅\n\n✨ Ты ответила: *{ua}*\n\n💖 _Ты настоящая soulmate! Мы на одной волне!_",
         ]
         result_text = random.choice(correct_messages)
     else:
         wrong_messages = [
-            f"❌ *ОЙ! НЕ УГАДАЛА* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *А правильно:* {ca}\n\n🌱 _Ничего! Ты узнаёшь меня всё лучше с каждым днём!_ 💕",
-            f"❌ *МИМО!* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *На самом деле:* {ca}\n\n💪 _В следующий раз точно получится! Я в тебя верю!_ ✨",
-            f"❌ *НЕ СОВСЕМ ТАК* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *Правильный ответ:* {ca}\n\n🌸 _Теперь ты знаешь обо мне чуть больше!_ 💫",
-            f"❌ *ПОЧТИ!* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *А я бы ответила:* {ca}\n\n🎯 _Ещё немного и ты станешь экспертом по мне!_ 🌟",
-            f"❌ *НЕ УГАДАЛА* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *Правильно:* {ca}\n\n💭 _Это повод пообщаться подольше и узнать друг друга лучше!_ 🦋",
-            f"❌ *НЕТ, НО БЛИЗКО!* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *Верный ответ:* {ca}\n\n👑 _С каждым вопросом ты становишься ближе ко мне!_ 💖",
+            f"❌ *ОЙ! НЕ УГАДАЛА* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *А правильно:* {ca}\n\n🌱 _Ничего! Ты узнаёшь меня всё лучше с каждым днём!_",
+            f"❌ *МИМО!* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *На самом деле:* {ca}\n\n💪 _В следующий раз точно получится! Я в тебя верю!_",
+            f"❌ *НЕ СОВСЕМ ТАК* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *Правильный ответ:* {ca}\n\n🌸 _Теперь ты знаешь обо мне чуть больше!_",
+            f"❌ *ПОЧТИ!* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *А я бы ответила:* {ca}\n\n🎯 _Ещё немного и ты станешь экспертом по мне!_",
+            f"❌ *НЕ УГАДАЛА* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *Правильно:* {ca}\n\n💭 _Это повод пообщаться подольше и узнать друг друга лучше!_",
+            f"❌ *НЕТ, НО БЛИЗКО!* ❌\n\n💭 Ты ответила: *{ua}*\n✅ *Верный ответ:* {ca}\n\n👑 _С каждым вопросом ты становишься ближе ко мне!_",
         ]
         result_text = random.choice(wrong_messages)
     
@@ -1440,7 +1417,8 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     total_att = sum(t['attempts'] for t in tests)
     proh_word = decline_word(total_att, "прохождение", "прохождения", "прохождений")
-    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 *{len(tests)}* {decline_word(len(tests),'тест','теста','тестов')} | 🎯 *{total_att}* {proh_word}\n\n"
+    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 *{len(tests)}* {decline_word(len(tests),'тест','теста','тестов')} | 🎯 *{total_att}* {proh_word}\n"
+    text += f"• • • • • • • • • • • •\n💡 *Хранятся последние 10 тестов*\nПри создании нового — самый старый удалится\n• • • • • • • • • • • •\n\n"
     kb = []
     for t in tests:
         w = decline_friend_word(t['attempts'])
@@ -1476,7 +1454,9 @@ async def premium_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_keyboard() if not is_premium(user_id) else get_main_keyboard(user_id))
 
 async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer()
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
     days, price = (15,99) if query.data=="buy_15days" else (30,149)
     payment = Payment.create({"amount":{"value":f"{price}.00","currency":"RUB"},"confirmation":{"type":"redirect","return_url":f"https://t.me/{BOT_USERNAME}"},"description":f"Premium на {days} дней","metadata":{"user_id":query.from_user.id,"days":days},"capture":True})
     await query.message.reply_text(f"💎 *Premium на {days} дней*\n\n💰 *{price}₽*\n✨ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n👇 *Нажми для оплаты:*", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f"💎 Оплатить {price}₽", url=payment.confirmation.confirmation_url)]]))
@@ -1509,9 +1489,12 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text=="🔙 Назад": await start(update, context)
     elif text=="➕ Добавить вариант":
         data = context.user_data.get('creating_test')
-        if data and data.get('step')=='collecting_options' and len(data.get('current_options',[]))<MAX_OPTIONS:
-            data['waiting_for_option'] = True
-            await update.message.reply_text(f"✏️ *Напиши вариант №{len(data['current_options'])+1}:*\n\n💡 Варианты должны быть разными и понятными", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+        if data and data.get('step')=='collecting_options':
+            if len(data.get('current_options',[])) >= MAX_OPTIONS:
+                await update.message.reply_text(f"⚠️ *Максимум {MAX_OPTIONS} вариантов!*\n\n🎯 Нажми «✅ Готово» чтобы продолжить.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+            else:
+                data['waiting_for_option'] = True
+                await update.message.reply_text(f"✏️ *Напиши вариант №{len(data['current_options'])+1}:*\n\n💡 Варианты должны быть разными и понятными", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
     elif text=="✅ Готово":
         data = context.user_data.get('creating_test')
         if data and data.get('step')=='collecting_options':
@@ -1584,9 +1567,18 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("share_"):
         tid = int(data.replace("share_","")); uid = query.from_user.id
         if not is_premium(uid):
+            user_data = get_user(uid)
+            remaining = FREE_TESTS_LIMIT - user_data.get('tests_created',0)
+            if remaining <= 0:
+                await query.message.reply_text(
+                    f"💔 *Лимит бесплатных тестов исчерпан!*\n\n"
+                    f"🌸 Ты использовала все {FREE_TESTS_LIMIT} бесплатных тестов.\n\n"
+                    f"💎 *Купи Premium* и получи:\n♾️ Безлимитные тесты\n🎓 Красивый золотой диплом\n📊 Ответы подруг\n\n"
+                    f"👇 *Нажми кнопку ниже:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_keyboard())
+                return
             conn = get_db(); c = conn.cursor(); c.execute('UPDATE users SET tests_created=tests_created+1 WHERE user_id=?', (uid,)); conn.commit()
-            user_data = get_user(uid); remaining = FREE_TESTS_LIMIT - user_data.get('tests_created',0); conn.close()
-            si = f"\n\n📦 *Списан 1 тест*\n📊 *Осталось:* {remaining} {decline_word(remaining,'тест','теста','тестов')}" if remaining>=0 else "\n\n⚠️ *Лимит превышен!*"
+            remaining = FREE_TESTS_LIMIT - user_data.get('tests_created',0) - 1; conn.close()
+            si = f"\n\n📦 *Списан 1 тест*\n📊 *Осталось:* {remaining} {decline_word(remaining,'тест','теста','тестов')}"
         else: si = "\n\n💎 *Премиум — безлимит!* ♾️"
         await query.message.reply_text(f"📤✨ *ПОДЕЛИСЬ ТЕСТОМ!* ✨📤\n\n💕 Отправь тест подруге и узнай насколько хорошо она тебя знает!\n\n🎯 Чем больше подруг пройдут — тем интереснее битва за звание лучшей! 👑{si}\n\n👇 *Нажми на кнопку:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(tid))
     elif data.startswith("answers_"):
@@ -1836,13 +1828,14 @@ async def select_correct(update, context):
     await query.message.reply_text("💬 *Хочешь добавить комментарий?*\n\nНапиши или нажми «Пропустить»\n\n*Пример:* «Да, я обожаю этот цвет!»", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭️ Пропустить", callback_data=f"skip_comment_{ci}")]]))
     data['waiting_comment'] = True; data['temp_correct_idx'] = ci
 
-async def save_comment(update, context):
+async def save_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('creating_test')
     if not data or not data.get('waiting_comment'): return
     ci = data['temp_correct_idx']
     if 'comments' not in data: data['comments'] = {}
     data['comments'][str(data['current_q'])] = update.message.text.strip()
-    data['waiting_comment'] = False; await continue_after_comment(update, context, ci)
+    data['waiting_comment'] = False
+    await continue_after_comment(update, context, ci)
 
 async def skip_comment(update, context):
     query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
@@ -1851,8 +1844,31 @@ async def skip_comment(update, context):
 
 async def continue_after_comment(uoq, context, ci):
     data = context.user_data.get('creating_test')
+    
+    # Проверка на превышение лимита вопросов
+    if data['current_q'] >= data['total_q']:
+        qs = [q['text'] for q in data['questions_data']]; opts = [q['options'] for q in data['questions_data']]; corr = [q['correct'] for q in data['questions_data']]
+        if hasattr(uoq, 'callback_query') and uoq.callback_query: user = uoq.callback_query.from_user
+        elif hasattr(uoq, 'from_user'): user = uoq.from_user
+        elif hasattr(uoq, 'effective_user'): user = uoq.effective_user
+        else: return
+        tid = create_test(user.id, user.first_name, data['title'], qs, opts, corr, data.get('greeting_type'), data.get('greeting_file_id'), data.get('comments',{}), data.get('photos',{}))
+        pm = data.get('_pending_media')
+        if pm: media_manager.track_media(pm['file_id'], pm['file_type'], user.id, tid, pm.get('file_size',0), pm.get('duration',0))
+        for ph in data.get('_pending_photos',[]): media_manager.track_media(ph['file_id'], 'photo', user.id, tid)
+        del context.user_data['creating_test']
+        text = (f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n• • • • • • • • • • • •\n💭 Вопросов: *{len(qs)}*\n")
+        if data.get('greeting_file_id'): text += "🎬 Поздравление: *есть ✨*\n"
+        if data.get('_pending_photos'): text += f"📸 Фото: *{len(data.get('_pending_photos',[]))}*\n"
+        text += ("• • • • • • • • • • • •\n\n💖 *Отправь тест подружке и узнай\nкто знает тебя лучше всех!* 👑\n\n👇 Нажми на кнопку ниже чтобы поделиться:")
+        if hasattr(uoq,'message'): await uoq.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(tid))
+        else: await uoq.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(tid))
+        await uoq.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(user.id))
+        return
+    
     data['questions_data'].append({'text':data['current_question'],'options':data['current_options'].copy(),'correct':ci})
     data['current_q'] += 1
+    
     if data['current_q'] < data['total_q']:
         data['step'] = 'selecting_question'; data['current_question_index'] = (data.get('current_question_index',0)+1)%len(data.get('group_questions',[]))
         data['current_options'] = []; data['waiting_for_option'] = False; data['waiting_comment'] = False
@@ -1862,24 +1878,19 @@ async def continue_after_comment(uoq, context, ci):
         await show_question_for_selection(uoq, context)
     else:
         qs = [q['text'] for q in data['questions_data']]; opts = [q['options'] for q in data['questions_data']]; corr = [q['correct'] for q in data['questions_data']]
-        user = uoq.from_user if hasattr(uoq,'from_user') else uoq.callback_query.from_user if hasattr(uoq,'callback_query') else getattr(uoq,'effective_user',None)
-        if not user: return
+        if hasattr(uoq, 'callback_query') and uoq.callback_query: user = uoq.callback_query.from_user
+        elif hasattr(uoq, 'from_user'): user = uoq.from_user
+        elif hasattr(uoq, 'effective_user'): user = uoq.effective_user
+        else: return
         tid = create_test(user.id, user.first_name, data['title'], qs, opts, corr, data.get('greeting_type'), data.get('greeting_file_id'), data.get('comments',{}), data.get('photos',{}))
         pm = data.get('_pending_media')
         if pm: media_manager.track_media(pm['file_id'], pm['file_type'], user.id, tid, pm.get('file_size',0), pm.get('duration',0))
         for ph in data.get('_pending_photos',[]): media_manager.track_media(ph['file_id'], 'photo', user.id, tid)
         del context.user_data['creating_test']
-        text = (f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n"
-                f"📝 *{data['title']}*\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💭 Вопросов: *{len(qs)}*\n")
-        if data.get('greeting_file_id'):
-            text += f"🎬 Поздравление: *есть ✨*\n"
-        if data.get('_pending_photos'):
-            text += f"📸 Фото: *{len(data.get('_pending_photos',[]))}*\n"
-        text += (f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
-                 f"💖 *Отправь тест подружке и узнай\nкто знает тебя лучше всех!* 👑\n\n"
-                 f"👇 Нажми на кнопку ниже чтобы поделиться:")
+        text = (f"🎉✨ *ТЕСТ ГОТОВ!* ✨🎉\n\n📝 *{data['title']}*\n• • • • • • • • • • • •\n💭 Вопросов: *{len(qs)}*\n")
+        if data.get('greeting_file_id'): text += "🎬 Поздравление: *есть ✨*\n"
+        if data.get('_pending_photos'): text += f"📸 Фото: *{len(data.get('_pending_photos',[]))}*\n"
+        text += ("• • • • • • • • • • • •\n\n💖 *Отправь тест подружке и узнай\nкто знает тебя лучше всех!* 👑\n\n👇 Нажми на кнопку ниже чтобы поделиться:")
         if hasattr(uoq,'message'): await uoq.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(tid))
         else: await uoq.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(tid))
         await uoq.message.reply_text("🌸 Главное меню:", reply_markup=get_main_keyboard(user.id))
@@ -1906,7 +1917,7 @@ def main():
     app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
     app.add_handler(MessageHandler(filters.PHOTO, save_photo))
     app.add_handler(CallbackQueryHandler(callback_handler))
-    logger.info("🚀✨ Бот запущен! Версия 9.8 ✨🚀")
+    logger.info("🚀✨ Бот запущен! Версия 9.9 ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
