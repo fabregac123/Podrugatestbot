@@ -1725,7 +1725,7 @@ async def premium_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else: text = "💎 *ПРЕМИУМ ПОДПИСКА*\n\n✨ *Что даёт:*\n♾️ Безлимитные тесты\n🎓 Золотой диплом\n📊 Ответы подруг\n\n💰 *Стоимость:*\n• 99₽ — 15 дней\n• 149₽ — месяц\n\n👇 *Выбери тариф:*"
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_keyboard() if not is_premium(user_id) else get_main_keyboard(user_id))
 
-async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
@@ -1733,11 +1733,18 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     logger.info(f"💎 Начало создания платежа: days={days}, price={price}, user_id={user_id}")
-    logger.info(f"💎 Shop ID: {SHOP_ID}")
-    logger.info(f"💎 Secret Key: {'live_***' if SECRET_KEY.startswith('live_') else 'test_***' if SECRET_KEY.startswith('test_') else 'НЕ НАСТРОЕН'}")
+    
+    # Отправляем сообщение что платёж создаётся
+    status_msg = await query.message.reply_text("⏳ *Создаём платёж...*", parse_mode=ParseMode.MARKDOWN)
     
     try:
-        logger.info(f"💎 Создаю платёж в YooKassa...")
+        # Устанавливаем таймаут 30 секунд
+        import sys
+        logger.info(f"💎 Python version: {sys.version}")
+        logger.info(f"💎 YooKassa version: {yookassa.__version__ if hasattr(yookassa, '__version__') else 'неизвестна'}")
+        
+        # Создаём платёж с обработкой ошибок
+        logger.info(f"💎 Отправляю запрос к YooKassa API...")
         
         payment = Payment.create({
             "amount": {
@@ -1760,6 +1767,9 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"   Payment ID: {payment.id}")
         logger.info(f"   Статус: {payment.status}")
         logger.info(f"   Ссылка для оплаты: {payment.confirmation.confirmation_url}")
+        
+        # Удаляем сообщение "Создаём платёж..."
+        await status_msg.delete()
         
         # Сохраняем платёж
         payment_registry[payment.id] = {
@@ -1787,37 +1797,35 @@ async def buy_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"✅ Сообщение с кнопкой оплаты отправлено пользователю {user_id}")
         
-    except ApiError as e:
-        logger.error(f"❌ Ошибка API YooKassa: {e}")
-        error_msg = str(e)
-        
-        if "401" in error_msg or "Unauthorized" in error_msg:
-            user_msg = ("😢 *Ошибка авторизации в платёжной системе*\n\n"
-                       "⚠️ Проверьте, что ключи YooKassa настроены правильно:\n"
-                       "• Shop ID должен быть из личного кабинета\n"
-                       "• Секретный ключ должен начинаться с live_ для боевого режима\n"
-                       "• Или с test_ для тестового режима\n\n"
-                       "Сообщите администратору об ошибке.")
-        elif "test" in error_msg.lower() and "live_" in SECRET_KEY:
-            user_msg = ("😢 *Ошибка конфигурации платежей*\n\n"
-                       "⚠️ Боевой ключ (live_) используется с тестовым shop_id.\n"
-                       "Проверьте настройки YooKassa.")
-        else:
-            user_msg = f"😢 *Ошибка при создании платежа*\n\nПопробуй ещё раз через минуту.\n\n`{error_msg[:200]}`"
-        
-        await query.message.reply_text(user_msg, parse_mode=ParseMode.MARKDOWN)
-        
     except Exception as e:
-        logger.error(f"❌ Неожиданная ошибка при создании платежа: {type(e).__name__}: {e}")
+        logger.error(f"❌ Ошибка при создании платежа: {type(e).__name__}: {e}")
         logger.error(f"❌ Полный traceback:", exc_info=True)
         
-        await query.message.reply_text(
-            f"😢 *Произошла ошибка*\n\n"
-            f"Попробуй ещё раз через минуту.\n\n"
-            f"Тип ошибки: `{type(e).__name__}`\n"
-            f"Сообщение: `{str(e)[:200]}`",
-            parse_mode=ParseMode.MARKDOWN
-        )
+        # Удаляем сообщение "Создаём платёж..."
+        try:
+            await status_msg.delete()
+        except:
+            pass
+        
+        error_text = str(e)
+        logger.error(f"❌ Текст ошибки: {error_text}")
+        
+        # Проверяем разные типы ошибок
+        if "ConnectionError" in type(e).__name__ or "Timeout" in type(e).__name__:
+            user_msg = "😢 *Ошибка соединения с платёжной системой*\n\nПопробуй ещё раз через минуту."
+        elif "401" in error_text or "403" in error_text:
+            user_msg = ("😢 *Ошибка авторизации*\n\n"
+                       "Проверьте правильность ключей YooKassa:\n"
+                       f"• Shop ID: `{SHOP_ID}`\n"
+                       "• Secret Key должен соответствовать shop_id")
+        elif "test" in error_text.lower() and "live_" in SECRET_KEY:
+            user_msg = ("😢 *Ошибка конфигурации*\n\n"
+                       "Боевой ключ (live_) используется с неверным shop_id.\n"
+                       "Проверьте настройки в личном кабинете YooKassa.")
+        else:
+            user_msg = f"😢 *Ошибка при создании платежа*\n\n`{error_text[:300]}`\n\nПопробуй ещё раз через минуту."
+        
+        await query.message.reply_text(user_msg, parse_mode=ParseMode.MARKDOWN)
 
 # === ОБРАБОТЧИКИ КНОПОК ===
 @flood_check
