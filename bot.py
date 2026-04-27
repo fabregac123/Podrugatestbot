@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 10.0 — ФИНАЛЬНАЯ
+Версия: 10.2 — ПОЛНАЯ СО ВСЕМИ ПРАВКАМИ
 """
 
 import logging
@@ -514,6 +514,66 @@ PRESET_GROUPS = {
             "🪩 Люблю ли я танцевать до упаду?", "🎲 В какие игры я играю на вечеринках?",
             "✨ Что я делаю, когда все устали, а я нет?"
         ]
+    },
+    'love_test': {
+        'name': '💘 Про любовь',
+        'questions': [
+            "💕 Кто мой краш сейчас?", "😍 Какой тип парней мне нравится?",
+            "💋 Был ли у меня первый поцелуй?", "💌 Писала ли я любовные записки?",
+            "🌹 Какое моё идеальное свидание?", "💔 Как я переживаю отказы?",
+            "💍 Хочу ли я замуж?", "👀 На что я обращаю внимание в первую очередь?",
+            "🎭 Ревнивая ли я?", "💬 Обсуждаю ли я парней с подругами?"
+        ]
+    },
+    'secrets': {
+        'name': '🤫 Секреты',
+        'questions': [
+            "🤐 Мой самый большой секрет?", "😴 Что я делаю когда никто не видит?",
+            "🍪 Что я ем по ночам?", "📱 Что я скрываю в телефоне?",
+            "😢 Из-за чего я плакала последний раз?", "🎤 Какую песню я пою в душе?",
+            "👻 Чего я боюсь больше всего?", "💭 О чём я думаю перед сном?",
+            "🪄 Какое моё тайное желание?", "📝 Веду ли я личный дневник?"
+        ]
+    },
+    'school_life': {
+        'name': '📚 Школьная жизнь',
+        'questions': [
+            "📖 Мой любимый предмет?", "😫 Какой урок я ненавижу?",
+            "👩‍🏫 Любимая учительница?", "👯 С кем я сижу за партой?",
+            "🍔 Что я ем в столовой?", "📱 Что я делаю на скучных уроках?",
+            "🏆 Моя лучшая оценка?", "📝 Списываю ли я домашку?",
+            "🎓 Куда хочу поступать?", "🌟 Моё главное достижение в школе?"
+        ]
+    },
+    'future': {
+        'name': '🔮 Будущее',
+        'questions': [
+            "🎯 Кем я хочу стать?", "🏠 Где я хочу жить?",
+            "💼 Какую работу я выберу?", "✈️ В какой стране хочу побывать?",
+            "👶 Сколько у меня будет детей?", "🐶 Какое животное хочу завести?",
+            "🚗 Какую машину хочу?", "💎 Что для меня успех?",
+            "🌟 Главная цель на жизнь?", "💖 Что сделает меня счастливой?"
+        ]
+    },
+    'would_you_rather': {
+        'name': '🎭 Что выберешь?',
+        'questions': [
+            "🏝️ Пляж или горы?", "🍕 Пицца или суши?",
+            "🎬 Кино или сериал?", "☕ Кофе или чай?",
+            "📱 iPhone или Android?", "👗 Платье или джинсы?",
+            "🎵 Поп или рок?", "📚 Книга или фильм?",
+            "🌅 Рассвет или закат?", "💃 Клуб или домашняя вечеринка?"
+        ]
+    },
+    'friendship_advice': {
+        'name': '💖 Совет подругам',
+        'questions': [
+            "💕 Что для меня настоящая дружба?", "🤝 Как я поддерживаю подруг?",
+            "💬 Что я ценю в людях больше всего?", "😤 Что меня бесит в дружбе?",
+            "🎁 Люблю ли я дарить подарки?", "📱 Часто ли я отвечаю на сообщения?",
+            "🌟 Что для меня идеальная подруга?", "💔 Как я переживаю ссоры?",
+            "🦋 Прощаю ли я обиды?", "💖 Что я готова сделать ради подруги?"
+        ]
     }
 }
 
@@ -526,7 +586,10 @@ QUESTIONS = {
         "😢 Из-за чего я могу заплакать?", "🤫 Мой секрет, который знаешь только ты?",
         "🎬 Фильм, который мы смотрели вместе?", "📸 Наше лучшее совместное фото?",
         "💬 Фраза, которую я часто говорю?", "🛍️ Где мы любим гулять?",
-        "😴 В какое время я обычно ложусь спать?", "💖 Что я ценю в нашей дружбе больше всего?"
+        "😴 В какое время я обычно ложусь спать?", "💖 Что я ценю в нашей дружбе больше всего?",
+        "🤝 Как я познакомилась со своим лучшим другом?", "💭 О чём я мечтаю когда думаю о друзьях?",
+        "🎵 Какая песня напоминает мне о нашей дружбе?", "📱 Какой стикер я использую чаще всего в чате с тобой?",
+        "🌟 Кто мой пример для подражания?", "💕 Что я никогда не прощу подруге?"
     ],
     'love': [
         "💘 Какой тип парней мне нравится?", "😳 Как я показываю симпатию?", "🌹 Моё идеальное свидание?",
@@ -538,7 +601,9 @@ QUESTIONS = {
         "🎭 Какой типаж парней из фильмов мне нравится?", "📝 Веду ли я дневник про любовь?",
         "😊 Что меня влюбляет в человека?", "🙄 Что меня раздражает в парнях?",
         "💬 Обсуждаю ли я крашей с подругами?", "🎁 Какой подарок от парня я хочу?",
-        "💎 Верю ли я в любовь с первого взгляда?"
+        "💎 Верю ли я в любовь с первого взгляда?", "👻 Кто мой тайный краш из класса?",
+        "😢 Из-за чего я могу расплакаться при парне?", "🎬 Какой любовный фильм я пересматриваю?",
+        "💕 Ревную ли я?", "🌟 Верю ли я в родственные души?", "💘 Что для меня важнее: внешность или характер?"
     ],
     'style': [
         "👗 Мой любимый стиль одежды?", "🎀 Любимый цвет в одежде?", "👟 Кроссовки или каблуки?",
@@ -548,7 +613,9 @@ QUESTIONS = {
         "👚 Какой мой любимый топ?", "🧢 Ношу ли я кепки?", "💄 Крашусь ли я каждый день?",
         "👠 Какая обувь у меня самая любимая?", "📸 В какой одежде я чаще фоткаюсь?",
         "🎨 Какие цвета преобладают в моём гардеробе?", "🪞 Сколько времени я собираюсь на выход?",
-        "✨ Что я никогда не надену?"
+        "✨ Что я никогда не надену?", "👗 Платье или спортивный костюм?",
+        "💍 Люблю ли я бижутерию?", "🛍️ Как часто я покупаю новую одежду?",
+        "👠 Моя самая дорогая пара обуви?", "🎀 Какой аксессуар я ношу каждый день?", "💄 Моя любимая косметика?"
     ],
     'beauty': [
         "💄 Моя любимая помада?", "🧴 Какой уход за кожей я использую?", "💅 Какой маникюр я люблю?",
@@ -558,7 +625,10 @@ QUESTIONS = {
         "💤 Делаю ли я ночной уход?", "☀️ Пользуюсь ли я SPF?", "💋 Блеск или матовая помада?",
         "👩‍🎤 Какой макияж я делаю на вечеринку?", "🧴 Какой у меня тип кожи?",
         "💆‍♀️ Делаю ли я массаж лица?", "🦷 Как часто я чищу зубы?",
-        "🧴 Моё любимое масло для тела?", "✨ Что для меня главное в уходе за собой?"
+        "🧴 Моё любимое масло для тела?", "✨ Что для меня главное в уходе за собой?",
+        "💅 Делаю ли я педикюр?", "💇‍♀️ Какой цвет волос я хочу попробовать?",
+        "🧖‍♀️ Хожу ли я к косметологу?", "🌸 Какие духи я ношу зимой и летом?",
+        "💤 Что я делаю перед сном для красоты?", "🪞 Сколько зеркал у меня дома?"
     ],
     'social': [
         "📱 Моя любимая соцсеть?", "📸 Что я пощу в сторис?", "❤️ Сколько лайков я обычно набираю?",
@@ -569,7 +639,10 @@ QUESTIONS = {
         "🤳 Делаю ли я селфи каждый день?", "📱 Сколько приложений у меня на телефоне?",
         "🔋 На сколько процентов у меня обычно зарядка?", "🎮 Играю ли я в мобильные игры?",
         "📹 Смотрю ли я YouTube?", "🎤 Записываю ли я голосовые сообщения?",
-        "💬 В каких чатах я сижу?", "📲 Как часто я меняю аватарку?"
+        "💬 В каких чатах я сижу?", "📲 Как часто я меняю аватарку?",
+        "📱 Какой у меня рингтон?", "🎵 Что у меня в плейлисте?",
+        "💬 С кем я переписываюсь больше всего?", "📸 Сколько у меня подписчиков?",
+        "🦄 Какие фильтры я использую чаще всего?", "🎬 Смотрю ли я стримы?"
     ],
     'school': [
         "📖 Мой любимый предмет?", "😫 Самый ненавистный урок?", "📱 Что я делаю на скучных уроках?",
@@ -579,7 +652,10 @@ QUESTIONS = {
         "✏️ Какими ручками я пишу?", "📅 Какой день недели самый тяжёлый?",
         "🏃‍♀️ Люблю ли я физкультуру?", "🎨 Какой предмет хочу добавить в расписание?",
         "📝 Делаю ли я домашку сразу?", "🤝 С кем я делаю проекты?", "🎓 Хочу ли я в университет?",
-        "📊 Переживаю ли я из-за оценок?", "🌟 Моё главное школьное достижение?"
+        "📊 Переживаю ли я из-за оценок?", "🌟 Моё главное школьное достижение?",
+        "👯 Кто моя школьная bestie?", "🍔 Что я покупаю в школьном буфете?",
+        "📱 Прячу ли я телефон на уроках?", "🎒 Ношу ли я с собой косметичку в школу?",
+        "🌟 Какой предмет я бы убрала из расписания?", "👩‍🏫 Как я называю учителей за их спиной?"
     ],
     'dreams': [
         "✈️ Куда я мечтаю поехать?", "🌟 Моя самая заветная мечта?", "🚗 Какую машину я хочу?",
@@ -589,7 +665,10 @@ QUESTIONS = {
         "🎤 Хочу ли я стать знаменитой?", "📸 О чём я мечтаю, глядя на фото?",
         "🌈 В какой стране хочу побывать больше всего?", "🎬 Какой фильм я хочу, чтобы сняли про меня?",
         "💼 Какую работу я хочу?", "🏝️ Остров или горы?", "🛫 Что первое я сделаю, когда разбогатею?",
-        "💖 Сколько детей я хочу?", "✨ Какое желание я загадаю на падающую звезду?"
+        "💖 Сколько детей я хочу?", "✨ Какое желание я загадаю на падающую звезду?",
+        "🌟 Если бы я могла исполнить 3 желания?", "💎 Что для меня важнее денег?",
+        "🎤 Хочу ли я выступать на сцене?", "✈️ В какой стране я хочу встретить старость?",
+        "🐶 Какое экзотическое животное я хочу?", "🏠 Квартира или дом?"
     ],
     'kpop': [
         "🎤 Моя любимая k-pop группа?", "💕 Мой биас?", "🎧 Какой трек сейчас на повторе?",
@@ -600,7 +679,10 @@ QUESTIONS = {
         "📱 Какое фото айдола у меня на заставке?", "🎤 Пою ли я k-pop в караоке?",
         "🪭 Коллекционирую ли я фотокарты?", "💬 С кем я обсуждаю k-pop?",
         "🎬 Смотрю ли я дорамы с айдолами?", "💘 Кто мой bias wrecker?",
-        "🎶 Какая группа у меня в топ-3?", "🌟 Какой концепт я люблю больше всего?"
+        "🎶 Какая группа у меня в топ-3?", "🌟 Какой концепт я люблю больше всего?",
+        "💜 Кто мой ультимативный биас?", "🎤 Какая группа заставила меня полюбить k-pop?",
+        "💃 Какие танцы я учу по утрам?", "📺 Какое k-pop шоу я пересматриваю?",
+        "🌟 Если бы я могла встретить одного айдола?", "🎵 Какая песня заставляет меня плакать?"
     ],
     'food': [
         "🍕 Моё любимое блюдо?", "😖 Что я ненавижу есть?", "👩‍🍳 Что я умею готовить?",
@@ -609,7 +691,10 @@ QUESTIONS = {
         "🥤 Мой любимый напиток?", "🍦 Какое мороженое я выбираю?", "🍫 Шоколад или чипсы?",
         "🥗 Ем ли я салаты?", "🍔 Фастфуд или домашняя еда?", "🧋 Люблю ли я баббл ти?",
         "🍣 Ем ли я суши?", "🌮 Люблю ли я мексиканскую еду?", "🍩 Какие пончики я люблю?",
-        "🧀 Добавляю ли я сыр везде?", "🍇 Какой фрукт мой любимый?"
+        "🧀 Добавляю ли я сыр везде?", "🍇 Какой фрукт мой любимый?",
+        "🍳 Что я готовлю лучше всего?", "☕ Сладкий кофе или горький?",
+        "🍕 С ананасами или без?", "🍣 Люблю ли я острое?",
+        "🍩 Что я ем когда грустно?", "🍦 Ванильное или шоколадное?"
     ],
     'humor': [
         "🏃‍♀️ Что я делаю, когда опаздываю?", "🤪 Моя самая странная привычка?",
@@ -619,7 +704,10 @@ QUESTIONS = {
         "📸 Моё самое смешное фото?", "🎭 Какое лицо я корчу на селфи?", "🤣 Как я смеюсь?",
         "🪄 Что бы я сделала, если бы стала невидимкой?", "🎁 Самый странный подарок, который я получала?",
         "💇‍♀️ Моя самая неудачная стрижка?", "👗 Что я надела не по погоде?",
-        "📱 Что я случайно лайкнула?", "😅 Попадала ли я в неловкие ситуации?"
+        "📱 Что я случайно лайкнула?", "😅 Попадала ли я в неловкие ситуации?",
+        "😂 Какая шутка меня всегда смешит?", "📸 Самое глупое фото в моём телефоне?",
+        "🎭 Как я пародирую учителей?", "💃 Что я делаю когда думаю что никто не смотрит?",
+        "🤪 Моя вредная привычка?", "😱 Что я делаю когда пугаюсь?"
     ]
 }
 
@@ -636,31 +724,46 @@ def get_friendship_prediction(score, name):
         predictions = [
             f"💕 {name} — твоя родственная душа! Вы понимаете друг друга с полуслова. Береги эту дружбу, она особенная! ✨",
             f"👑 {name} знает тебя лучше всех! Вы как сёстры — такие друзья встречаются раз в жизни. Цени её! 💎",
-            f"🌟 {name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга! 💖"
+            f"🌟 {name} — твой идеальный мэтч в дружбе! Вы созданы друг для друга! 💖",
+            f"💫 Вы с {name} — две половинки одного целого. Такая дружба случается раз в жизни! Берегите друг друга! 🦋",
+            f"🔥 {name} не просто подруга — она твоя soulmate! Вы читаете мысли друг друга. Это волшебно! ✨",
+            f"👯‍♀️ Вы с {name} как две капли воды! Понимаете друг друга без слов. Настоящая дружба! 💕",
         ]
     elif score >= 70:
         predictions = [
             f"💎 {name} очень хорошо тебя знает! Вы близкие подруги, и ваша дружба крепнет с каждым днём 🌸",
             f"✨ {name} понимает тебя почти во всём. Ещё немного — и вы станете лучшими подругами! 💕",
-            f"🌟 Вы с {name} на одной волне! Узнавайте друг друга ещё глубже, впереди много интересного! 🎵"
+            f"🌟 Вы с {name} на одной волне! Узнавайте друг друга ещё глубже, впереди много интересного! 🎵",
+            f"🌸 {name} — настоящая подруга! Она знает твои привычки, вкусы и секреты. Цени это! 💫",
+            f"🎯 {name} отлично тебя знает! Вы прошли через многое вместе. Дружба становится только крепче! 💪",
+            f"🦋 С {name} легко и просто! Она понимает тебя с полуслова. Продолжайте в том же духе! ✨",
         ]
     elif score >= 50:
         predictions = [
             f"🌸 {name} знает тебя неплохо, но есть куда расти! Проводите больше времени вместе, это сближает 💫",
             f"🌱 Ваша дружба с {name} только расцветает! Делитесь секретами, мечтами и любимыми треками 🎧",
-            f"💫 {name} уже многое о тебе знает. Ещё немного — и вы станете ближе! Устройте совместную прогулку 🌈"
+            f"💫 {name} уже многое о тебе знает. Ещё немного — и вы станете ближе! Устройте совместную прогулку 🌈",
+            f"📖 Вы с {name} на правильном пути! Узнавайте друг друга постепенно. Впереди много интересного! 💕",
+            f"🎵 {name} знает о тебе главное. Расскажи ей больше о своих мечтах — это сближает! ✨",
+            f"🌺 {name} уже твоя подруга! Поделись с ней своими любимыми фильмами и музыкой. Узнайте друг друга глубже! 💖",
         ]
     elif score >= 30:
         predictions = [
             f"🦋 {name} только начинает тебя узнавать. Это отличный повод пообщаться побольше! Расскажи о себе 💬",
             f"🌱 Вы с {name} на пути к настоящей дружбе. Не останавливайтесь! Впереди столько всего интересного ✨",
-            f"📖 {name} знает о тебе основы. Пригласи её на кофе или созвон — это сближает! 💕"
+            f"📖 {name} знает о тебе основы. Пригласи её на кофе или созвон — это сближает! 💕",
+            f"🌸 Вы с {name} только начинаете дружить. Это самое волшебное время! Узнавайте друг друга 💫",
+            f"🎯 {name} уже кое-что знает о тебе. Покажи ей свои любимые места и увлечения! ✨",
+            f"🦋 {name} интересуется тобой! Расскажи о своих хобби и мечтах. Дружба только зарождается! 💖",
         ]
     else:
         predictions = [
             f"🦋 {name} пока плохо тебя знает. Но это только начало! Каждая великая дружба начинается с первого шага ✨",
             f"🌱 {name} ещё предстоит узнать тебя получше. Поделись своими увлечениями и любимыми фильмами 🎬",
-            f"💫 Ваша дружба с {name} только зарождается. Впереди много смеха, секретов и совместных фото! 📸"
+            f"💫 Ваша дружба с {name} только зарождается. Впереди много смеха, секретов и совместных фото! 📸",
+            f"🌸 Вы с {name} только знакомитесь. Будь открытой и искренней — это лучший способ подружиться! 💕",
+            f"🎵 {name} пока мало о тебе знает. Но это поправимо! Пригласи её погулять или на чай ☕",
+            f"🦋 {name} — новый человек в твоей жизни. Дай ей шанс узнать тебя настоящую! Впереди много хорошего 💖",
         ]
     return random.choice(predictions)
 
@@ -859,104 +962,134 @@ def add_tests_to_user(user_id, count):
 async def generate_friendship_analysis(user_name, creator_name, test_title, score, status, prediction, categories_stats):
     clean_status = status.replace(' 👑','').replace(' 💎','').replace(' 🌸','').replace(' 🌱','').replace(' 🦋','')
     
-    W, H = 1200, 1800
-    image = Image.new('RGB', (W, H), '#0F0F1A')
+    W, H = 1080, 1920
+    image = Image.new('RGB', (W, H), '#0A0A14')
     draw = ImageDraw.Draw(image)
     
     for y in range(H):
         ratio = y / H
-        r = int(15 + 10 * ratio)
-        g = int(15 + 5 * ratio)
-        b = int(26 + 15 * ratio)
+        r = int(10 + 8 * ratio)
+        g = int(10 + 3 * ratio)
+        b = int(20 + 25 * ratio)
         draw.line([(0, y), (W, y)], fill=(r, g, b))
     
-    draw.rectangle([(0, 0), (W, 4)], fill='#FF6B9D')
-    draw.rectangle([(0, H-4), (W, H)], fill='#A855F7')
+    for i in range(6):
+        color = (int(255 - i*30), int(107 + i*20), int(157 + i*15))
+        draw.rectangle([(0, i*3), (W, i*3+3)], fill=color)
+        draw.rectangle([(0, H-i*3-3), (W, H-i*3)], fill=(int(168 - i*20), int(85 + i*15), int(247 - i*10)))
+    
+    draw.rectangle([(0, 0), (5, H)], fill='#FF6B9D')
     
     try:
-        font_big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 90)
+        font_hero = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 110)
+        font_name = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
         font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52)
-        font_sub = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 34)
-        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 30)
-        font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 24)
-        font_score = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 130)
+        font_subtitle = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 40)
+        font_text = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 36)
+        font_body = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 34)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", 28)
     except:
-        font_big = font_title = font_sub = font_text = font_small = font_score = ImageFont.load_default()
+        font_hero = font_name = font_title = font_subtitle = font_text = font_body = font_small = ImageFont.load_default()
     
-    PINK = '#FF6B9D'; PURPLE = '#A855F7'; GOLD = '#FFD700'; WHITE = '#FFFFFF'
+    PINK = '#FF6B9D'; PURPLE = '#C084FC'; GOLD = '#FFD700'; WHITE = '#FFFFFF'
     GRAY = '#9CA3AF'; LIGHT_GRAY = '#6B7280'
-    GREEN = '#10B981'; BLUE = '#60A5FA'; ORANGE = '#F59E0B'; RED = '#EF4444'
+    GREEN = '#4ADE80'; BLUE = '#60A5FA'; ORANGE = '#FBBF24'; RED = '#F87171'
     
-    y = 80
-    draw.text((W//2, y), "FRIENDSHIP", fill=GRAY, font=font_small, anchor="mt")
-    y += 35
-    draw.text((W//2, y), "DIPLOMA", fill=GRAY, font=font_small, anchor="mt")
+    y = 100
+    draw.text((W//2, y), "ПОДРУГА ТЕСТ", fill=PINK, font=font_small, anchor="mt")
+    y += 40
+    draw.text((W//2, y), "ОФИЦИАЛЬНЫЙ СЕРТИФИКАТ", fill=GRAY, font=font_small, anchor="mt")
     
     y += 70
-    draw.text((W//2, y), "СЕРТИФИКАТ ДРУЖБЫ", fill=WHITE, font=font_title, anchor="mt")
+    for i in range(5):
+        x_offset = W//2 - 80 + i*40
+        size = 4 + i*2
+        draw.ellipse([(x_offset-size, y-size), (x_offset+size, y+size)], fill=PINK if i<3 else PURPLE)
     
     y += 60
-    for i in range(3):
-        draw.ellipse([(W//2-4+i*12, y-2), (W//2+4+i*12, y+2)], fill=PINK)
+    draw.text((W//2, y), user_name.upper(), fill=WHITE, font=font_hero, anchor="mt")
+    
+    bbox = draw.textbbox((0,0), user_name.upper(), font=font_hero)
+    name_w = bbox[2] - bbox[0]
+    y += 80
+    draw.rounded_rectangle([(W//2-name_w//2-20, y), (W//2+name_w//2+20, y+4)], radius=2, fill=PINK)
+    
+    y += 50
+    draw.text((W//2, y), f"знает", fill=GRAY, font=font_body, anchor="mt")
+    y += 45
+    draw.text((W//2, y), creator_name, fill=WHITE, font=font_title, anchor="mt")
+    y += 50
+    draw.text((W//2, y), f"на", fill=GRAY, font=font_body, anchor="mt")
     
     y += 60
-    draw.text((W//2, y), user_name, fill=WHITE, font=font_big, anchor="mt")
-    y += 80
-    draw.text((W//2, y), f"знает {creator_name} на", fill=GRAY, font=font_text, anchor="mt")
-    
-    y += 80
     score_text = f"{score:.0f}%"
+    
     if score >= 90: color = GREEN
     elif score >= 70: color = BLUE
     elif score >= 50: color = ORANGE
     else: color = RED
     
-    for offset in range(8, 0, -2):
-        draw.text((W//2, y), score_text, fill=color+str(10+offset*5), font=font_score, anchor="mt")
-    draw.text((W//2, y), score_text, fill=color, font=font_score, anchor="mt")
+    for offset in range(12, 0, -2):
+        alpha = hex(20 + offset*3)[2:].zfill(2)
+        draw.text((W//2+1, y+1), score_text, fill=color+alpha, font=font_hero, anchor="mt")
     
-    y += 120
-    draw.text((W//2, y), clean_status, fill=GOLD, font=font_sub, anchor="mt")
+    draw.text((W//2+3, y+3), score_text, fill='#00000040', font=font_hero, anchor="mt")
+    draw.text((W//2, y), score_text, fill=color, font=font_hero, anchor="mt")
+    
+    y += 110
+    draw.text((W//2, y), f"«{clean_status}»", fill=GOLD, font=font_subtitle, anchor="mt")
     
     y += 70
-    draw.rectangle([(100, y), (W-100, y+1)], fill=PINK+'40')
+    for i in range(3):
+        x = W//2 - 30 + i*30
+        draw.ellipse([(x-3, y-3), (x+3, y+3)], fill=PINK if i==1 else PURPLE)
     
-    y += 50
+    y += 60
     if categories_stats:
-        draw.text((100, y), "ПО КАТЕГОРИЯМ", fill=GRAY, font=font_small)
-        y += 45
+        draw.text((80, y), "📊 ПО КАТЕГОРИЯМ", fill=WHITE, font=font_subtitle)
+        y += 55
         
         for cat, stats in list(categories_stats.items())[:5]:
             cat_score = stats['correct'] * 100 / stats['total'] if stats['total'] > 0 else 0
             
-            draw.text((100, y), cat, fill=WHITE, font=font_text)
+            draw.text((80, y), cat, fill=WHITE, font=font_body)
             
-            bar_w = 500
-            bar_x = W - bar_w - 100
-            bar_h = 20
-            bar_y = y + 5
+            bar_w = 480
+            bar_x = W - bar_w - 80
+            bar_h = 30
+            bar_y = y - 2
             
-            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=10, fill='#1F1F35')
+            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=15, fill='#1A1A30')
+            draw.rounded_rectangle([bar_x, bar_y, bar_x+bar_w, bar_y+bar_h], radius=15, fill=None, outline='#2A2A45', width=1)
+            
             fill_w = int(bar_w * cat_score / 100)
             if fill_w > 0:
                 bc = GREEN if cat_score >= 70 else ORANGE if cat_score >= 50 else RED
-                draw.rounded_rectangle([bar_x, bar_y, bar_x+fill_w, bar_y+bar_h], radius=10, fill=bc)
+                draw.rounded_rectangle([bar_x, bar_y, bar_x+fill_w, bar_y+bar_h], radius=15, fill=bc)
             
-            draw.text((bar_x+bar_w+20, y-2), f"{cat_score:.0f}%", fill=GRAY, font=font_text)
-            y += 55
+            pct_text = f"{cat_score:.0f}%"
+            if fill_w > 60:
+                draw.text((bar_x+fill_w-55, y), pct_text, fill='#0A0A14', font=font_small)
+            else:
+                draw.text((bar_x+bar_w+15, y), pct_text, fill=GRAY, font=font_small)
+            
+            y += 65
+    
+    y += 50
+    for i in range(3):
+        x = W//2 - 30 + i*30
+        draw.ellipse([(x-3, y-3), (x+3, y+3)], fill=PURPLE if i==1 else PINK)
     
     y += 40
-    draw.rectangle([(100, y), (W-100, y+1)], fill=PINK+'40')
-    y += 40
-    draw.text((100, y), "ПРЕДСКАЗАНИЕ", fill=GRAY, font=font_small)
-    y += 45
+    draw.text((80, y), "🔮 ПРЕДСКАЗАНИЕ", fill=WHITE, font=font_subtitle)
+    y += 50
     
     words = prediction.split()
     lines = []
     current = []
     for w in words:
         current.append(w)
-        if draw.textbbox((0,0), ' '.join(current), font=font_text)[2] > W - 250:
+        if draw.textbbox((0,0), ' '.join(current), font=font_body)[2] > W - 200:
             current.pop()
             lines.append(' '.join(current))
             current = [w]
@@ -964,19 +1097,28 @@ async def generate_friendship_analysis(user_name, creator_name, test_title, scor
         lines.append(' '.join(current))
     
     for line in lines:
-        draw.text((100, y), line, fill=GRAY, font=font_text)
-        y += 40
+        draw.text((80, y), line, fill=GRAY, font=font_body)
+        y += 45
     
-    y = max(y + 60, H - 200)
-    draw.rectangle([(0, y), (W, y+1)], fill=PINK+'30')
+    y = max(y + 80, H - 250)
     
-    y += 40
+    for i in range(6):
+        color = (int(168 - i*20), int(85 + i*15), int(247 - i*10))
+        draw.rectangle([(0, H-200+i*3), (W, H-200+i*3+3)], fill=color)
+    
+    y = H - 160
     draw.text((W//2, y), "podrugatestbot", fill=PINK, font=font_small, anchor="mt")
     y += 35
-    draw.text((W//2, y), datetime.now().strftime("%d.%m.%Y"), fill=LIGHT_GRAY, font=font_small, anchor="mt")
+    draw.text((W//2, y), f"Выдано {datetime.now().strftime('%d.%m.%Y')}", fill=LIGHT_GRAY, font=font_small, anchor="mt")
     
     cert_id = hashlib.md5(f"{user_name}{test_title}{datetime.now()}".encode()).hexdigest()[:8].upper()
-    draw.text((W-100, 80), f"#{cert_id}", fill=LIGHT_GRAY, font=font_small, anchor="rt")
+    draw.text((W-100, 60), f"#{cert_id}", fill=LIGHT_GRAY, font=font_small, anchor="rt")
+    
+    stars_count = 5 if score >= 90 else 4 if score >= 70 else 3 if score >= 50 else 2 if score >= 30 else 1
+    y = 70
+    for i in range(5):
+        star_color = GOLD if i < stars_count else '#2A2A45'
+        draw.text((W-100-120+i*50, y), "★", fill=star_color, font=font_subtitle)
     
     img_bytes = io.BytesIO()
     image.save(img_bytes, format='PNG', quality=95)
@@ -1178,8 +1320,12 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    if query: await query.answer(); user_id = query.from_user.id
-    else: user_id = update.effective_user.id
+    if query:
+        try: await query.answer()
+        except: pass
+        user_id = query.from_user.id
+    else:
+        user_id = update.effective_user.id
     if user_id != ADMIN_ID: return
     stats = get_server_stats()
     if 'error' in stats:
@@ -1351,7 +1497,10 @@ async def handle_create_test(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # === ПРОХОЖДЕНИЕ ТЕСТА ===
 @rate_limit('take_test')
 async def start_test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer(); tid = int(query.data.replace("start_","")); test = get_test_by_id(tid); user = query.from_user
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    tid = int(query.data.replace("start_","")); test = get_test_by_id(tid); user = query.from_user
     if not test: await query.message.reply_text("💔 Тест не найден"); return
     
     if test['creator_id'] == user.id:
@@ -1372,7 +1521,9 @@ async def send_question(query, context):
     else: await query.message.reply_text(qt, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
 
 async def handle_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer()
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
     aidx = int(query.data.replace("answer_","")); data = context.user_data.get('taking_test')
     if not data: return
     test = data['test']; current = data['current']
@@ -1417,7 +1568,18 @@ async def finish_test(query, context):
     score = sum(1 for i in range(min(len(answers),len(correct))) if answers[i]==correct[i])*100/len(correct) if correct else 0
     save_attempt(test['id'], user.id, user.first_name, answers, score)
     status = get_friendship_status(score); prediction = get_friendship_prediction(score, user.first_name)
-    try: await context.bot.send_message(chat_id=test['creator_id'], text=f"🎉💖 *УРА! ТВОЙ ТЕСТ ПРОШЛИ!* 💖🎉\n\n👤 *{user.first_name}* прошла тест\n📝 «{test['title']}»\n🎯 *Результат:* {score:.0f}%\n🏆 *Статус:* {status}\n\n✨ *Зайди в «👑 Мои тесты»!*", parse_mode=ParseMode.MARKDOWN)
+    try:
+        friend_username = f" @{user.username}" if user.username else ""
+        await context.bot.send_message(
+            chat_id=test['creator_id'],
+            text=f"🎉💖 *УРА! ТВОЙ ТЕСТ ПРОШЛИ!* 💖🎉\n\n"
+                 f"👤 *{user.first_name}*{friend_username} прошла тест\n"
+                 f"📝 «{test['title']}»\n"
+                 f"🎯 *Результат:* {score:.0f}%\n"
+                 f"🏆 *Статус:* {status}\n\n"
+                 f"✨ *Зайди в «👑 Мои тесты»!*",
+            parse_mode=ParseMode.MARKDOWN
+        )
     except: pass
     categories_stats = {}
     for i, q in enumerate(test['questions']):
@@ -1461,7 +1623,10 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
 
 async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query; await query.answer(); tid = int(query.data.replace("mytest_","")); test = get_test_by_id(tid)
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    tid = int(query.data.replace("mytest_","")); test = get_test_by_id(tid)
     if not test: await query.message.reply_text("💔 Тест не найден", parse_mode=ParseMode.MARKDOWN); return
     attempts = get_test_attempts(tid); avg = sum(a['score'] for a in attempts)/len(attempts) if attempts else 0; mx = max(a['score'] for a in attempts) if attempts else 0
     status = "🔥 СУПЕР-ПОПУЛЯРНЫЙ!" if len(attempts)>=10 else "⭐ ПОПУЛЯРНЫЙ!" if len(attempts)>=5 else "🌸 НАБИРАЕТ ПОПУЛЯРНОСТЬ" if len(attempts)>=2 else "🆕 ЖДЁТ ПОДРУГ"
@@ -1563,6 +1728,10 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif data.get('step')=='collecting_options' and data.get('waiting_for_option'):
                 option_text = text.strip()
                 if len(option_text)>50: await update.message.reply_text("⚠️ *Слишком длинный вариант!*"); return
+                if len(data.get('current_options', [])) >= MAX_OPTIONS:
+                    await update.message.reply_text(f"⚠️ *Максимум {MAX_OPTIONS} вариантов!*\n\n🎯 Нажми «✅ Готово» чтобы продолжить.", parse_mode=ParseMode.MARKDOWN, reply_markup=get_options_keyboard())
+                    data['waiting_for_option'] = False
+                    return
                 data['current_options'].append(option_text)
                 ol = "\n".join([f"{i+1}. {o}" for i, o in enumerate(data['current_options'])])
                 if len(data['current_options']) >= MAX_OPTIONS:
@@ -1576,6 +1745,7 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @rate_limit('callback')
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query; data = query.data
+    
     if data.startswith("group_"): await select_question_group(update, context)
     elif data=="show_presets": await show_presets(update, context)
     elif data.startswith("preset_"): await select_preset(update, context)
@@ -1622,9 +1792,19 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"💎 *Купи Premium* и получи:\n♾️ Безлимитные тесты\n🎓 Красивый золотой диплом\n📊 Ответы подруг\n\n"
                     f"👇 *Нажми кнопку ниже:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_premium_keyboard())
                 return
-            conn = get_db(); c = conn.cursor(); c.execute('UPDATE users SET tests_created=tests_created+1 WHERE user_id=?', (uid,)); conn.commit()
-            remaining = FREE_TESTS_LIMIT - user_data.get('tests_created',0) - 1; conn.close()
-            si = f"\n\n📦 *Списан 1 тест*\n📊 *Осталось:* {remaining} {decline_word(remaining,'тест','теста','тестов')}"
+            
+            conn = get_db(); c = conn.cursor()
+            c.execute('SELECT id FROM attempts WHERE test_id=? AND friend_id=?', (tid, uid))
+            already_taken = c.fetchone()
+            if not already_taken:
+                c.execute('UPDATE users SET tests_created=tests_created+1 WHERE user_id=?', (uid,))
+                conn.commit()
+                remaining = FREE_TESTS_LIMIT - user_data.get('tests_created',0) - 1
+                si = f"\n\n📦 *Списан 1 тест*\n📊 *Осталось:* {remaining} {decline_word(remaining,'тест','теста','тестов')}"
+            else:
+                remaining = FREE_TESTS_LIMIT - user_data.get('tests_created',0)
+                si = f"\n\n📊 *Осталось:* {remaining} {decline_word(remaining,'тест','теста','тестов')}\n_Тест уже был отправлен ранее_"
+            conn.close()
         else: si = "\n\n💎 *Премиум — безлимит!* ♾️"
         await query.message.reply_text(f"📤✨ *ПОДЕЛИСЬ ТЕСТОМ!* ✨📤\n\n💕 Отправь тест подруге и узнай насколько хорошо она тебя знает!\n\n🎯 Чем больше подруг пройдут — тем интереснее битва за звание лучшей! 👑{si}\n\n👇 *Нажми на кнопку:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_share_keyboard(tid))
     elif data.startswith("answers_"):
@@ -1686,20 +1866,20 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text("⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n😢 *Недостаточно участниц!*\n\n👯‍♀️ Нужно минимум 2 подруги!\n\n📤 *Отправь тест ещё одной:*", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💕 Поделиться", callback_data=f"share_{tid}")]]))
             return
         sa = sorted(attempts, key=lambda x: x['score'], reverse=True)
-        text = f"⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n📝 *{test['title']}*\n\n🏆 *ТУРНИРНАЯ ТАБЛИЦА:*\n\n"
-        medals = ["🥇","🥈","🥉"]; descs = ["👑 *Королева знаний!*","💎 *Бриллиантовая подруга!*","🌟 *Золотая середина!*","🌸 *Прелестно!*","🌱 *Растёт!*"]
+        text = f"⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n📝 Тест: _{test['title']}_\n\n🏆 *ТУРНИРНАЯ ТАБЛИЦА*\n\n"
+        medals = ["🥇","🥈","🥉"]; descs = ["Королева знаний", "Бриллиантовая подруга", "Золотая середина", "Прелестно", "Растёт"]
         for i, a in enumerate(sa[:5]):
             medal = medals[i] if i<3 else f"  {i+1}."; score = a['score']; status = get_friendship_status(score)
             bar = "💜"*int(score/10)+"🤍"*(10-int(score/10))
-            text += f"{medal} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n   🏆 *{status}*\n   {descs[i] if i<len(descs) else '💫 Продолжай!'}\n\n"
-        text += "⚡ *ПРОТИВОСТОЯНИЕ ЛИДЕРОВ:*\n\n"
+            text += f"\n{medal} *{a['friend_name']}*\n   {bar} *{score:.0f}%*\n   {status}\n   _{descs[i] if i<len(descs) else 'Продолжай узнавать'}_\n"
+        text += f"\n━━━━━━━━━━━━━━━━━━━━━━\n⚡ *ПРОТИВОСТОЯНИЕ ЛИДЕРОВ*\n\n"
         if len(sa)>=2:
             first, second = sa[0], sa[1]; diff = first['score']-second['score']
             text += f"🥇 *{first['friend_name']}* vs 🥈 *{second['friend_name']}*\n📊 Разрыв: *{diff:.0f}%*\n\n"
-            if diff>=30: text += f"👑 *ТОТАЛЬНОЕ ДОМИНИРОВАНИЕ!*\n{first['friend_name']} знает тебя в разы лучше!\nОна не просто подруга — она СЕСТРА! 💕\n"
-            elif diff>=15: text += f"💪 *УВЕРЕННОЕ ЛИДЕРСТВО!*\n{first['friend_name']} впереди!\n_Устройте реванш!_ 🎯\n"
-            elif diff>=5: text += f"⚡ *НАПРЯЖЁННАЯ БОРЬБА!*\nРазрыв минимален!\n_Интрига сохраняется..._ 👀\n"
-            else: text += f"🎯 *ФОТОФИНИШ!*\nОбе знают тебя отлично! 💕💕\n"
+            if diff>=30: text += f"👑 *ТОТАЛЬНОЕ ДОМИНИРОВАНИЕ!*\n_{first['friend_name']} знает тебя в разы лучше!_\n_Она не просто подруга — она СЕСТРА!_ 💕\n"
+            elif diff>=15: text += f"💪 *УВЕРЕННОЕ ЛИДЕРСТВО!*\n_{first['friend_name']} впереди, но {second['friend_name']} ещё может наверстать!_\n_Устройте реванш через неделю!_ 🎯\n"
+            elif diff>=5: text += f"⚡ *НАПРЯЖЁННАЯ БОРЬБА!*\n_Разрыв минимален! Всё решают детали!_\n_Интрига сохраняется..._ 👀\n"
+            else: text += f"🎯 *ФОТОФИНИШ!*\n_Практически одинаковый результат!_\n_Обе подруги знают тебя отлично!_ 💕💕\n"
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📈 Статистика", callback_data=f"stats_friendship_{tid}"), InlineKeyboardButton("📊 Ответы", callback_data=f"answers_{tid}")], [InlineKeyboardButton("👑 Детали победителя", callback_data=f"friend_details_{tid}_{first['friend_name']}")], [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{tid}")]])
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
     elif data.startswith("stats_friendship_"):
@@ -1741,10 +1921,59 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif diff>=10: text += f"💪 *{best['friend_name']}* лидирует!\n{second['friend_name']} дышит в спину 🔥\n"
             elif diff>=5: text += f"⚡ Напряжённая борьба!\nУстройте реванш 🎯\n"
             else: text += f"🎯 ОДИНАКОВЫЙ результат!\nОбе знают отлично! 💕💕\n"
-        if avg_score>=80: text += f"\n💕 *Вау! Тебя ОТЛИЧНО знают!*\nТы душа компании! Подруги обожают тебя ✨\n\n🌟 *Совет:* Продолжай сиять!\n"
-        elif avg_score>=60: text += f"\n🌸 *Тебя ХОРОШО знают!*\nТы интересная и загадочная 💫\n\n💡 *Совет:* Расскажи о мечтах — это сближает!\n"
-        elif avg_score>=40: text += f"\n🌱 *Тебя УЗНАЮТ всё лучше!*\nТы как книга — интересно но не всё прочитано 📖\n\n💡 *Совет:* Устройте прогулку или созвон!\n"
-        else: text += f"\n🦋 *Вы только НАЧИНАЕТЕ дружить!*\nСамое волшебное время! ✨\n\n💡 *Совет:* Поделись любимыми треками!\n"
+        
+        # Инсайты и советы
+        if avg_score >= 80:
+            insights = [
+                "💕 *Вау! Тебя ОТЛИЧНО знают!*\nТы душа компании! Подруги тебя обожают и понимают с полуслова ✨",
+                "👑 *Ты звезда!*\nПодруги знают о тебе практически всё. Ты открытая и искренняя!",
+                "🌟 *Ты на высоте!*\nТвои подруги — настоящие сокровища. Они знают тебя вдоль и поперёк!",
+            ]
+            advices = [
+                "🌟 *Совет:* Продолжай сиять! Ты rare find — таких как ты мало. Будь собой!",
+                "💫 *Совет:* Устрой битву подруг! Пусть лучшие подруги посоревнуются за звание главной!",
+                "✨ *Совет:* Сделай новый тест с другими вопросами. Узнай что ещё знают о тебе подруги!",
+                "🎯 *Совет:* Подари Premium лучшей подруге — пусть увидит вашу статистику!",
+            ]
+        elif avg_score >= 60:
+            insights = [
+                "🌸 *Тебя ХОРОШО знают!*\nТы интересная и загадочная личность. Подруги тянутся к тебе!",
+                "💫 *Ты классная!*\nПодруги знают о тебе много, но ещё есть что узнавать. Интригует!",
+                "🌺 *Ты загадка!*\nТы открыта, но не всё рассказываешь. Это притягивает людей!",
+            ]
+            advices = [
+                "💡 *Совет:* Расскажи подругам о своих мечтах и целях — это сближает!",
+                "🎵 *Совет:* Поделись любимыми треками или фильмами. Общие интересы укрепляют дружбу!",
+                "📸 *Совет:* Сделайте совместное фото и создайте тест о вашей дружбе!",
+                "☕ *Совет:* Пригласи подругу на кофе или прогулку. Живое общение творит чудеса!",
+            ]
+        elif avg_score >= 40:
+            insights = [
+                "🌱 *Тебя УЗНАЮТ всё лучше!*\nТы как захватывающая книга — интересно, но ещё не всё прочитано 📖",
+                "🌸 *Ты раскрываешься!*\nПодруги узнают тебя постепенно. Это прекрасный процесс!",
+                "🦋 *Ты в процессе!*\nКаждый день кто-то узнаёт о тебе что-то новое. Это здорово!",
+            ]
+            advices = [
+                "💡 *Совет:* Устройте совместную прогулку или созвон. Разговоры сближают!",
+                "🎬 *Совет:* Посмотрите вместе фильм или сериал — появится много общих тем!",
+                "📝 *Совет:* Создай ещё один тест с другими вопросами. Пусть подруги узнают тебя лучше!",
+                "💬 *Совет:* Расскажи подругам историю из детства. Личные истории сближают сильнее всего!",
+            ]
+        else:
+            insights = [
+                "🦋 *Вы только НАЧИНАЕТЕ дружить!*\nЭто самое волшебное время — первые секреты, шутки и фото 📸",
+                "🌱 *Всё впереди!*\nВаша дружба только зарождается. Сколько всего интересного вас ждёт!",
+                "✨ *Новый этап!*\nНовые знакомства — это новые возможности. Будь открытой!",
+            ]
+            advices = [
+                "💡 *Совет:* Поделись своими любимыми треками или фильмами. Найди общие интересы!",
+                "📸 *Совет:* Сделайте совместное селфи и создайте тест о вашей дружбе!",
+                "☕ *Совет:* Пригласи подругу на чай или кофе. Живое общение — лучший способ сблизиться!",
+                "🎵 *Совет:* Расскажи о своих хобби и увлечениях. Может у вас есть что-то общее?",
+                "💬 *Совет:* Задай подруге встречный тест! Пусть и она узнает о тебе побольше!",
+            ]
+        text += f"\n{random.choice(insights)}\n\n{random.choice(advices)}\n"
+        
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("⚔️ Битва", callback_data=f"battle_{tid}"), InlineKeyboardButton("📊 Ответы", callback_data=f"answers_{tid}")], [InlineKeyboardButton("🔮 Анализ", callback_data=f"friend_details_{tid}_{sa[0]['friend_name']}")], [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{tid}")]])
         await query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
     elif data.startswith("delete_"):
@@ -1763,11 +1992,16 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data=="server_refresh": await admin_server_stats_compact(update, context)
     elif data=="admin_media_stats": await admin_media_stats(update, context)
     elif data=="media_force_cleanup": media_manager.periodic_cleanup(); await query.answer("✅ Очищено"); await admin_media_stats(update, context)
-    await query.answer()
+    
+    try: await query.answer()
+    except: pass
 
 # === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 async def select_question_group(update, context):
-    query = update.callback_query; await query.answer(); group = query.data.replace("group_",""); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    group = query.data.replace("group_",""); data = context.user_data.get('creating_test')
     if not data: return
     if group=='random':
         all_q = [q for g in QUESTION_GROUPS for q in QUESTIONS.get(g,[])]; random.shuffle(all_q)
@@ -1777,13 +2011,18 @@ async def select_question_group(update, context):
     await query.message.reply_text(f"📊 Сколько вопросов?\n✏️ Напиши число от 2 до {MAX_QUESTIONS}:", reply_markup=get_cancel_keyboard())
 
 async def show_presets(update, context):
-    query = update.callback_query; await query.answer()
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
     kb = [[InlineKeyboardButton(p['name'], callback_data=f"preset_{k}")] for k, p in PRESET_GROUPS.items()]
     kb.append([InlineKeyboardButton("🔙 Назад", callback_data="back_to_groups")])
     await query.message.edit_text("📦 *ГОТОВЫЕ НАБОРЫ*\n\n👇 Выбери:", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
 
 async def select_preset(update, context):
-    query = update.callback_query; await query.answer(); preset = PRESET_GROUPS.get(query.data.replace("preset_",""))
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    preset = PRESET_GROUPS.get(query.data.replace("preset_",""))
     if not preset: return
     data = context.user_data.get('creating_test')
     if not data: return
@@ -1791,7 +2030,10 @@ async def select_preset(update, context):
     await query.message.reply_text(f"✅ *{preset['name']}*\n📊 Сколько вопросов?\n✏️ Напиши число:", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def greeting_choice(update, context):
-    query = update.callback_query; await query.answer(); choice = query.data.replace("greeting_",""); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    choice = query.data.replace("greeting_",""); data = context.user_data.get('creating_test')
     if choice=="skip":
         data['step'] = 'selecting_question'; data['current_question_index'] = 0; data['greeting_type'] = None; data['greeting_file_id'] = None
         await query.message.reply_text("✨ *Приступаем к вопросам!*", parse_mode=ParseMode.MARKDOWN); await show_question_for_selection(query, context); return
@@ -1837,39 +2079,57 @@ async def show_question_for_selection(update, context):
     else: await update.callback_query.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
 
 async def next_question_callback(update, context):
-    query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    data = context.user_data.get('creating_test')
     if not data: return
     qs = data.get('group_questions',[]); idx = (data.get('current_question_index',0)+1)%len(qs)
     data['current_question_index'] = idx; data['current_question'] = qs[idx]
     await query.message.edit_text(f"📝 *Вопрос {data['current_q']+1}/{data['total_q']}*\n\n{qs[idx]}", parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
 
 async def random_question_callback(update, context):
-    query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    data = context.user_data.get('creating_test')
     if not data: return
     all_q = [q for g in QUESTION_GROUPS for q in QUESTIONS.get(g,[])]; random.shuffle(all_q)
     data['group_questions'] = all_q[:30]; data['current_question_index'] = 0; data['current_question'] = all_q[0]
     await query.message.edit_text(f"📝 *Вопрос {data['current_q']+1}/{data['total_q']}*\n\n{all_q[0]}", parse_mode=ParseMode.MARKDOWN, reply_markup=get_question_choice_keyboard())
 
 async def select_this_question(update, context):
-    query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    data = context.user_data.get('creating_test')
     if not data: return
     data['current_options'] = []; data['step'] = 'collecting_options'; data['waiting_for_option'] = True
-    await query.message.reply_text(f"📝 *Вопрос:* {data['current_question']}\n\n✏️ *Напиши вариант ответа №1:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
+    await query.message.reply_text(f"📝 *Вопрос:* {data['current_question']}\n\n✏️ *Напиши вариант ответа №1:*\n\n📏 *До 50 символов*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def add_photo_to_question(update, context):
-    query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    data = context.user_data.get('creating_test')
     if not data or not data.get('current_question'): return
     data['waiting_photo'] = True
     await query.message.reply_text("📸 *Отправь фото*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def custom_question(update, context):
-    query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    data = context.user_data.get('creating_test')
     if not data: return
     data['waiting_custom_question'] = True
     await query.message.reply_text("✏️ *Напиши свой вопрос:*", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
 
 async def select_correct(update, context):
-    query = update.callback_query; await query.answer(); ci = int(query.data.replace("correct_","")); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    ci = int(query.data.replace("correct_","")); data = context.user_data.get('creating_test')
     if not data: return
     await query.message.reply_text("💬 *Хочешь добавить комментарий?*\n\nНапиши или нажми «Пропустить»\n\n*Пример:* «Да, я обожаю этот цвет!»", parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⏭️ Пропустить", callback_data=f"skip_comment_{ci}")]]))
     data['waiting_comment'] = True; data['temp_correct_idx'] = ci
@@ -1878,13 +2138,20 @@ async def save_comment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data.get('creating_test')
     if not data or not data.get('waiting_comment'): return
     ci = data['temp_correct_idx']
+    comment_text = update.message.text.strip()
+    if len(comment_text) > 100:
+        await update.message.reply_text("⚠️ *Слишком длинный комментарий!*\n📏 Максимум 100 символов.\n\nНапиши короче или нажми «Пропустить»", parse_mode=ParseMode.MARKDOWN)
+        return
     if 'comments' not in data: data['comments'] = {}
-    data['comments'][str(data['current_q'])] = update.message.text.strip()
+    data['comments'][str(data['current_q'])] = comment_text
     data['waiting_comment'] = False
     await continue_after_comment(update, context, ci)
 
 async def skip_comment(update, context):
-    query = update.callback_query; await query.answer(); data = context.user_data.get('creating_test')
+    query = update.callback_query
+    try: await query.answer()
+    except: pass
+    data = context.user_data.get('creating_test')
     if not data: return
     ci = int(query.data.replace("skip_comment_","")); data['waiting_comment'] = False; await continue_after_comment(query, context, ci)
 
@@ -1962,7 +2229,7 @@ def main():
     app.add_handler(MessageHandler(filters.VIDEO, save_greeting))
     app.add_handler(MessageHandler(filters.PHOTO, save_photo))
     app.add_handler(CallbackQueryHandler(callback_handler))
-    logger.info("🚀✨ Бот запущен! Версия 10.0 ✨🚀")
+    logger.info("🚀✨ Бот запущен! Версия 10.2 ✨🚀")
     app.run_polling()
 
 if __name__ == "__main__":
