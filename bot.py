@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
-Версия: 9.5 — БЕЗ FLASK, ТОЛЬКО POLLING
+Версия: 9.8 — ВСЕ ИСПРАВЛЕНИЯ
 """
 
 import logging
@@ -13,8 +13,6 @@ import os
 import asyncio
 import hashlib
 import io
-import threading
-import sys
 import time
 import platform
 from datetime import datetime, timedelta
@@ -255,7 +253,10 @@ def rate_limit(action_type: str):
                 if hasattr(update, 'message') and update.message:
                     await update.message.reply_text(error_msg)
                 elif hasattr(update, 'callback_query') and update.callback_query:
-                    await update.callback_query.answer(error_msg, show_alert=True)
+                    try:
+                        await update.callback_query.answer(error_msg, show_alert=True)
+                    except:
+                        pass
                 return
             return await func(update, context, *args, **kwargs)
         return wrapper
@@ -935,12 +936,7 @@ def give_premium(user_id, days=30):
 def add_tests_to_user(user_id, count):
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT tests_created FROM users WHERE user_id = ?', (user_id,))
-    row = c.fetchone()
-    if row:
-        current = row['tests_created']
-        new_value = max(0, current - count)
-        c.execute('UPDATE users SET tests_created = ? WHERE user_id = ?', (new_value, user_id))
+    c.execute('UPDATE users SET tests_created = MAX(0, tests_created - ?) WHERE user_id = ?', (count, user_id))
     conn.commit()
     conn.close()
     return True
@@ -1197,12 +1193,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         available = get_available_tests_count(user.id)
         word = decline_word(available, "тест", "теста", "тестов")
-        tests_info = f"📊 *Осталось:* {available} {word}" if available > 0 else "⚠️ *Лимит исчерпан!*"
         text = (f"🌸✨ *ПРИВЕТ, {user.first_name}!* ✨🌸\n\n"
                 f"💕 Создай тест о себе и отправь подружкам!\n"
                 f"Узнайте насколько хорошо вы друг друга знаете 🎯\n\n"
-                f"🎁 *Бесплатно:* {FREE_TESTS_LIMIT} тестов\n"
-                f"{tests_info}\n\n"
+                f"📊 *Осталось тестов:* {available} {word}\n\n"
                 f"💎 *Premium* открывает:\n"
                 f"♾️ Безлимитные тесты\n"
                 f"🎓 Красивый золотой диплом\n"
@@ -1398,10 +1392,11 @@ async def admin_server_stats_compact(update: Update, context: ContextTypes.DEFAU
     stats = get_server_stats()
     
     if 'error' in stats:
+        msg = f"❌ *Ошибка:* {stats['error']}"
         if query:
-            await query.message.edit_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
+            await query.message.edit_text(msg, parse_mode=ParseMode.MARKDOWN)
         else:
-            await update.message.reply_text(f"❌ *Ошибка:* {stats['error']}", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
         return
     
     cpu_emoji = get_server_status_emoji(stats['cpu']['percent'])
@@ -1727,9 +1722,9 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         conn = get_db()
         c = conn.cursor()
         if target.isdigit():
-            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE user_id = ?', (int(target),))
+            c.execute('SELECT user_id, first_name FROM users WHERE user_id = ?', (int(target),))
         else:
-            c.execute('SELECT user_id, first_name, tests_created FROM users WHERE username = ?', (target,))
+            c.execute('SELECT user_id, first_name FROM users WHERE username = ?', (target,))
         row = c.fetchone()
         
         if not row:
@@ -1738,25 +1733,22 @@ async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
             del context.user_data['admin_action']
             return
         
-        old_tests = row['tests_created']
-        add_tests_to_user(row['user_id'], count)
+        user_id = row['user_id']
+        user_name = row['first_name'] or target
         
-        c.execute('SELECT tests_created FROM users WHERE user_id = ?', (row['user_id'],))
-        new_row = c.fetchone()
-        new_tests = new_row['tests_created']
+        add_tests_to_user(user_id, count)
+        available = get_available_tests_count(user_id)
+        available_text = f"♾️ безлимит" if available == -1 else str(available)
+        test_word = decline_word(count, "тест", "теста", "тестов")
+        
         conn.close()
         
-        actual_added = old_tests - new_tests
-        available = get_available_tests_count(row['user_id'])
-        available_text = f"♾️ безлимит" if available == -1 else str(available)
-        test_word = decline_word(actual_added, "тест", "теста", "тестов")
-        
         await update.message.reply_text(
-            f"✅ *{row['first_name'] or target}* начислено *{actual_added}* {test_word}!\n📊 Доступно: *{available_text}*",
+            f"✅ *{user_name}* начислено *{count}* {test_word}!\n📊 Доступно: *{available_text}*",
             parse_mode=ParseMode.MARKDOWN, reply_markup=get_admin_keyboard()
         )
         try:
-            await context.bot.send_message(chat_id=row['user_id'], text=f"🎁 Вам начислено +{actual_added} {test_word}!")
+            await context.bot.send_message(chat_id=user_id, text=f"🎁 Вам начислено +{count} {test_word}!")
         except:
             pass
         del context.user_data['admin_action']
@@ -1980,9 +1972,13 @@ async def my_tests_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n📦 Создано тестов: *{len(tests)}*\n\n"
+    total_att = sum(t['attempts'] for t in tests)
+    text = f"👑✨ *МОИ ТЕСТЫ* ✨👑\n\n"
+    text += f"📦 *{len(tests)}* {decline_word(len(tests), 'тест', 'теста', 'тестов')} | "
+    text += f"👥 *{total_att}* {decline_friend_word(total_att)} прошли\n\n"
+    
     keyboard = []
-    for i, t in enumerate(tests, 1):
+    for t in tests:
         word = decline_friend_word(t['attempts'])
         if t['attempts'] >= 5:
             status = "🔥 ПОПУЛЯРНЫЙ"
@@ -2014,9 +2010,11 @@ async def my_test_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     status = "🔥 СУПЕР-ПОПУЛЯРНЫЙ!" if len(attempts) >= 10 else "⭐ ПОПУЛЯРНЫЙ!" if len(attempts) >= 5 else "🌸 НАБИРАЕТ ПОПУЛЯРНОСТЬ" if len(attempts) >= 2 else "🆕 ЖДЁТ ПОДРУГ"
     
+    proshli_word = "прошла" if len(attempts) == 1 else "прошли"
+    
     text = f"✨ *{test['title']}* ✨\n\n"
     text += f"{status}\n\n"
-    text += f"👥 *{len(attempts)}* {decline_friend_word(len(attempts))} прошли тест\n"
+    text += f"👥 *{len(attempts)}* {decline_friend_word(len(attempts))} {proshli_word} тест\n"
     text += f"🎯 Средний результат: *{avg_score:.0f}%*\n"
     if attempts:
         text += f"👑 Лучший результат: *{max_score:.0f}%*\n"
@@ -2180,13 +2178,12 @@ async def handle_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     data['waiting_for_option'] = True
                     await update.message.reply_text(f"✅ *Вопрос сохранён!*\n\n📝 *Твой вопрос:* {text}\n\n✏️ *Напиши вариант ответа №1:*\n\n💡 *Совет:* Варианты должны быть разными и понятными", parse_mode=ParseMode.MARKDOWN, reply_markup=get_cancel_keyboard())
             elif data.get('step') == 'collecting_options' and data.get('waiting_for_option'):
-                await handle_create_test(update, context)
-            elif data.get('step') == 'collecting_options' and not data.get('waiting_for_option'):
                 option_text = text.strip()
                 if len(option_text) > 50:
                     await update.message.reply_text("⚠️ *Слишком длинный вариант!* До 50 символов.")
                     return
                 data['current_options'].append(option_text)
+                data['waiting_for_option'] = False
                 options_list = "\n".join([f"{i+1}. {o}" for i, o in enumerate(data['current_options'])])
                 if len(data['current_options']) >= MAX_OPTIONS:
                     await update.message.reply_text(
@@ -2250,14 +2247,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         test_id = int(data.replace("view_", ""))
         test = get_test_by_id(test_id)
         if test:
-            text = f"👁✨ *ПРОСМОТР ТЕСТА* ✨👁\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n📋 *ТВОИ ВОПРОСЫ И ОТВЕТЫ:*\n\n"
+            text = f"👁✨ *ПРОСМОТР ТЕСТА* ✨👁\n\n📝 *{test['title']}*\n\n📋 *ТВОИ ВОПРОСЫ И ОТВЕТЫ:*\n\n"
             for i, q in enumerate(test['questions'], 1):
                 text += f"*{i}. {q}*\n"
                 for j, opt in enumerate(test['options'][i-1]):
                     prefix = "✅" if j == test['correct_answers'][i-1] else "➖"
                     text += f"   {prefix} {opt}\n"
                 text += "\n"
-            text += "━━━━━━━━━━━━━━━━━━━━━━\n💡 *Подсказка:* Отправь тест подругам\nи узнай кто знает тебя лучше всех! 💕"
+            text += "💡 *Подсказка:* Отправь тест подругам\nи узнай кто знает тебя лучше всех! 💕"
             await query.message.reply_text(text[:4000], parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📤 Поделиться", callback_data=f"share_{test_id}")], [InlineKeyboardButton("🔙 Назад", callback_data=f"back_to_test_{test_id}")]]))
     elif data.startswith("back_to_test_"):
         test_id = int(data.replace("back_to_test_", ""))
@@ -2302,7 +2299,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("answers_"):
         test_id = int(data.replace("answers_", ""))
         if not is_premium(query.from_user.id):
-            await query.answer("💎 Только для ПРЕМИУМ! Открой все секреты подруг ✨", show_alert=True)
+            try:
+                await query.answer("💎 Только для ПРЕМИУМ! Открой все секреты подруг ✨", show_alert=True)
+            except:
+                pass
             return
         
         test = get_test_by_id(test_id)
@@ -2324,7 +2324,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         sorted_attempts = sorted(attempts, key=lambda x: x['score'], reverse=True)
         
-        text = f"📊✨ *ОТВЕТЫ ПОДРУГ* ✨📊\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n👥 *Твои подруги прошли тест:*\n\n"
+        text = f"📊✨ *ОТВЕТЫ ПОДРУГ* ✨📊\n\n📝 *{test['title']}*\n\n👥 *Твои подруги прошли тест:*\n\n"
         
         for a in sorted_attempts[:10]:
             score = a['score']
@@ -2335,7 +2335,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else: emoji, hint = '🦋', 'Только знакомится! 🌈'
             text += f"{emoji} *{a['friend_name']}* — *{score:.0f}%*\n   💬 _{hint}_\n\n"
         
-        text += f"━━━━━━━━━━━━━━━━━━━━━━\n\n💡 *Нажми на подругу чтобы увидеть:*\n🔍 Все её ответы на вопросы\n📊 Детальную статистику\n🔮 Предсказание дружбы\n\n👇 *Выбери подругу:*"
+        text += f"💡 *Нажми на подругу чтобы увидеть:*\n🔍 Все её ответы на вопросы\n📊 Детальную статистику\n🔮 Предсказание дружбы\n\n👇 *Выбери подругу:*"
         
         keyboard = []
         for a in sorted_attempts[:10]:
@@ -2357,7 +2357,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         attempt = next((a for a in attempts if a['friend_name'] == friend_name), None)
         
         if not attempt:
-            await query.answer("❌ Ответы не найдены", show_alert=True)
+            try:
+                await query.answer("❌ Ответы не найдены", show_alert=True)
+            except:
+                pass
             return
         
         score = attempt['score']
@@ -2366,7 +2369,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         correct_count = sum(1 for i, ans in enumerate(attempt['answers']) if i < len(test['correct_answers']) and ans == test['correct_answers'][i])
         total_q = len(test['questions'])
         
-        text = f"🔮✨ *ДЕТАЛЬНЫЙ АНАЛИЗ* ✨🔮\n\n👤 *{friend_name}*\n📝 Тест: *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n🎯 *Результат:* {score:.0f}%\n🏆 *Уровень:* {level}\n📊 *{description}*\n✅ Правильно: *{correct_count}* из *{total_q}*\n\n"
+        text = f"🔮✨ *ДЕТАЛЬНЫЙ АНАЛИЗ* ✨🔮\n\n👤 *{friend_name}*\n📝 Тест: *{test['title']}*\n\n🎯 *Результат:* {score:.0f}%\n🏆 *Уровень:* {level}\n📊 *{description}*\n✅ Правильно: *{correct_count}* из *{total_q}*\n\n"
         
         if score >= 90:
             text += "👑 *СЁСТРЫ НАВЕК!*\n💕 Вы как две половинки одного целого!\n_Твоя душа знает твою душу_ ✨\n\n"
@@ -2377,7 +2380,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text += "🦋 *ЗНАКОМЫЕ!*\n🌈 Впереди много интересного!\n_Узнавайте друг друга постепенно_ ✨\n\n"
         
-        text += f"🔮 *ПРЕДСКАЗАНИЕ ДРУЖБЫ:*\n_{prediction}_\n\n━━━━━━━━━━━━━━━━━━━━━━\n📋 *ВСЕ ОТВЕТЫ:*\n\n"
+        text += f"🔮 *ПРЕДСКАЗАНИЕ ДРУЖБЫ:*\n_{prediction}_\n\n📋 *ВСЕ ОТВЕТЫ:*\n\n"
         
         comments = json.loads(test.get('answer_comments', '{}')) if test.get('answer_comments') else {}
         
@@ -2432,7 +2435,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         sorted_attempts = sorted(attempts, key=lambda x: x['score'], reverse=True)
         
-        text = f"⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n🏆 *ТУРНИРНАЯ ТАБЛИЦА:*\n\n"
+        text = f"⚔️✨ *БИТВА ПОДРУГ* ✨⚔️\n\n📝 *{test['title']}*\n\n🏆 *ТУРНИРНАЯ ТАБЛИЦА:*\n\n"
         
         medals = ["🥇", "🥈", "🥉"]
         descriptions = [
@@ -2451,7 +2454,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             text += f"{medal} *{a['friend_name']}*\n   [{bar}] *{score:.0f}%*\n   🏆 Статус: *{status}*\n   {descriptions[i] if i < len(descriptions) else '💫 Продолжай узнавать!'}\n\n"
         
-        text += "━━━━━━━━━━━━━━━━━━━━━━\n\n⚡ *ПРОТИВОСТОЯНИЕ ЛИДЕРОВ:*\n\n"
+        text += "⚡ *ПРОТИВОСТОЯНИЕ ЛИДЕРОВ:*\n\n"
         
         if len(sorted_attempts) >= 2:
             first, second = sorted_attempts[0], sorted_attempts[1]
@@ -2509,7 +2512,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 usernames[a['friend_name']] = row['username']
         conn.close()
         
-        text = f"📈✨ *СТАТИСТИКА ДРУЖБЫ* ✨📈\n\n📝 *{test['title']}*\n━━━━━━━━━━━━━━━━━━━━━━\n\n👥 *Твои подруги прошли тест:*\n\n"
+        text = f"💕✨ *СТАТИСТИКА ДРУЖБЫ* ✨💕\n\n📝 *{test['title']}*\n\n👥 *Твои подруги прошли тест:*\n\n"
         
         predictions = [
             "💕 Она твоя родственная душа! ✨",
@@ -2522,7 +2525,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         for i, a in enumerate(sorted_attempts[:10]):
             score = a['score']
-            bar = "█" * int(score / 10) + "░" * (10 - int(score / 10))
             
             if score >= 90: emoji, status, pred = '👑', 'ЭКСПЕРТ', predictions[0]
             elif score >= 80: emoji, status, pred = '💎', 'СУПЕР', predictions[0]
@@ -2533,11 +2535,20 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif score >= 30: emoji, status, pred = '🤝', 'ЗНАКОМАЯ', predictions[5]
             else: emoji, status, pred = '🦋', 'НОВАЯ ЗНАКОМАЯ', predictions[5]
             
+            filled = int(score / 10)
+            if score >= 90: bar = "💜" * filled + "🩶" * (10 - filled)
+            elif score >= 70: bar = "💗" * filled + "🩶" * (10 - filled)
+            elif score >= 50: bar = "💛" * filled + "🩶" * (10 - filled)
+            elif score >= 30: bar = "🩵" * filled + "🩶" * (10 - filled)
+            else: bar = "🤍" * filled + "🩶" * (10 - filled)
+            
             username = f" @{usernames[a['friend_name']]}" if a['friend_name'] in usernames else ""
-            text += f"{emoji} *{a['friend_name']}*{username}\n   [{bar}] *{score:.0f}%*\n   🏆 Уровень: *{status}*\n   💬 _{pred}_\n\n"
+            text += f"{emoji} *{a['friend_name']}*{username}\n   {bar} *{score:.0f}%*\n   🏆 Уровень: *{status}*\n   💬 _{pred}_\n\n"
         
-        text += f"━━━━━━━━━━━━━━━━━━━━━━\n\n📊 *ОБЩАЯ СТАТИСТИКА:*\n\n"
-        text += f"👥 Прошли тест: *{len(attempts)}* {decline_friend_word(len(attempts))}\n"
+        proshli_word = "прошла" if len(attempts) == 1 else "прошли"
+        
+        text += f"\n📊 *ОБЩАЯ СТАТИСТИКА:*\n\n"
+        text += f"👥 Тест {proshli_word}: *{len(attempts)}* {decline_friend_word(len(attempts))}\n"
         text += f"📈 Средний результат: *{avg_score:.0f}%*\n"
         text += f"👑 Лучший результат: *{max_score:.0f}%* — *{sorted_attempts[0]['friend_name']}* 💕\n"
         text += f"💔 Худший результат: *{min_score:.0f}%*\n\n"
@@ -2958,7 +2969,7 @@ def main():
     app.job_queue.run_repeating(cleanup_media_job, interval=3600, first=600)
     app.job_queue.run_repeating(cleanup_antispam_job, interval=3600, first=300)
     
-    logger.info("🚀✨ Бот запущен! Версия 9.5 (без Flask) ✨🚀")
+    logger.info("🚀✨ Бот запущен! Версия 9.8 — Все исправления ✨🚀")
     
     app.run_polling()
 
