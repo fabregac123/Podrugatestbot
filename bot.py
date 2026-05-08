@@ -1,4 +1,4 @@
-Есть бот с тестами для девушек мы его дорабатывали через bash #!/usr/bin/env python3
+python3
 # -*- coding: utf-8 -*-
 """
 PodrugaTestBot — бот для тестов между подругами
