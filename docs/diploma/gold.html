@@ -7,32 +7,32 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Great+Vibes&family=Cormorant+Garamond:wght@300;400;600;700&display=swap');
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: radial-gradient(ellipse at center, #1a0a30 0%, #0a0018 60%, #050010 100%); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; gap: 10px; overflow-x: hidden; }
-        .diploma { position: relative; z-index: 1; background: linear-gradient(180deg, #fef8e8 0%, #fdf2d0 10%, #fce8b2 25%, #fdf2d0 50%, #fce8b2 75%, #fdf2d0 90%, #fef8e8 100%); width: 100%; max-width: 380px; padding: 0; text-align: center; overflow: hidden; }
-        .frame-outer { background: linear-gradient(135deg, #8b6914 0%, #d4a843 20%, #ffd700 40%, #d4a843 60%, #8b6914 80%, #d4a843 100%); padding: 8px; }
-        .frame-middle { background: linear-gradient(180deg, #2a1000 0%, #3d1a00 30%, #2a1000 60%, #3d1a00 100%); padding: 3px; }
-        .frame-inner { background: linear-gradient(180deg, #fef8e8 0%, #fdf2d0 20%, #fce8b2 40%, #ffefd5 60%, #fce8b2 80%, #fef8e8 100%); padding: 20px 16px 16px; position: relative; }
-        .corner { position: absolute; width: 24px; height: 24px; border-color: #ffd700; border-style: solid; z-index: 2; }
-        .corner-tl { top: 8px; left: 8px; border-width: 3px 0 0 3px; }
-        .corner-tr { top: 8px; right: 8px; border-width: 3px 3px 0 0; }
-        .corner-bl { bottom: 8px; left: 8px; border-width: 0 0 3px 3px; }
-        .corner-br { bottom: 8px; right: 8px; border-width: 0 3px 3px 0; }
-        .crown { font-size: 48px; animation: bounce 2s ease-in-out infinite; }
-        @keyframes bounce { 0%,100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-8px) scale(1.06); } 50% { transform: translateY(0) scale(1); } }
-        .badge { display: inline-block; background: linear-gradient(135deg, #ffd700, #d4a843); color: #2a1000; padding: 4px 12px; font-family: 'Cormorant Garamond', serif; font-size: 9px; font-weight: 700; letter-spacing: 3px; margin: 4px 0; }
-        .title { font-family: 'Great Vibes', cursive; font-size: 36px; color: #5c3d00; margin: 2px 0; letter-spacing: 2px; }
-        .subtitle { font-family: 'Cormorant Garamond', serif; font-size: 11px; color: #8b6914; letter-spacing: 4px; margin-bottom: 4px; text-transform: uppercase; }
-        .ornament { font-size: 9px; color: #d4a843; letter-spacing: 4px; margin: 3px 0; }
-        .phrase { font-family: 'Cormorant Garamond', serif; font-size: 14px; color: #6b4d00; margin: 2px 0; font-style: italic; }
-        .recipient { font-family: 'Great Vibes', cursive; font-size: 40px; color: #3d1a00; margin: 4px 0; line-height: 1; }
-        .creator-name { font-family: 'Great Vibes', cursive; font-size: 32px; color: #5c3d00; margin: 2px 0; line-height: 1; }
-        .score-big { font-family: 'Playfair Display', serif; font-size: 52px; color: #3d1a00; font-weight: 900; margin: 2px 0; line-height: 1; }
-        .percent { font-size: 24px; }
-        .hearts-row { font-size: 16px; margin: 3px 0; }
-        .status-text { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: #5c3d00; font-weight: 600; margin: 3px 0; }
-        .prediction { font-family: 'Cormorant Garamond', serif; font-size: 12px; color: #6b4d00; margin: 6px 0 4px; font-style: italic; line-height: 1.4; padding: 0 8px; }
-        .footer-text { font-family: 'Cormorant Garamond', serif; font-size: 10px; color: #a08040; margin-top: 6px; letter-spacing: 3px; }
-        .share-btn { background: linear-gradient(135deg, #1a0800 0%, #3d1a00 50%, #1a0800 100%); color: #ffd700; border: 2px solid #d4a843; padding: 14px 24px; font-family: 'Cormorant Garamond', serif; font-size: 18px; font-weight: 600; letter-spacing: 2px; cursor: pointer; width: 100%; max-width: 380px; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; text-transform: uppercase; }
+        body { background: radial-gradient(ellipse at center, #1a0a30 0%, #0a0018 60%, #050010 100%); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px; gap: 14px; }
+        .diploma { background: linear-gradient(180deg, #fef8e8 0%, #fdf2d0 10%, #fce8b2 25%, #fdf2d0 50%, #fce8b2 75%, #fdf2d0 90%, #fef8e8 100%); width: 100%; max-width: 400px; padding: 0; text-align: center; }
+        .frame-outer { background: linear-gradient(135deg, #8b6914, #d4a843, #ffd700, #d4a843, #8b6914); padding: 10px; }
+        .frame-middle { background: linear-gradient(180deg, #2a1000, #3d1a00, #2a1000, #3d1a00); padding: 4px; }
+        .frame-inner { background: linear-gradient(180deg, #fef8e8, #fdf2d0, #fce8b2, #ffefd5, #fce8b2, #fef8e8); padding: 30px 20px 22px; position: relative; }
+        .corner { position: absolute; width: 32px; height: 32px; border-color: #ffd700; border-style: solid; z-index: 2; }
+        .corner-tl { top: 12px; left: 12px; border-width: 3px 0 0 3px; }
+        .corner-tr { top: 12px; right: 12px; border-width: 3px 3px 0 0; }
+        .corner-bl { bottom: 12px; left: 12px; border-width: 0 0 3px 3px; }
+        .corner-br { bottom: 12px; right: 12px; border-width: 0 3px 3px 0; }
+        .crown { font-size: 60px; animation: bounce 2s ease-in-out infinite; }
+        @keyframes bounce { 0%,100% { transform: translateY(0); } 30% { transform: translateY(-12px); } }
+        .badge { background: linear-gradient(135deg, #ffd700, #d4a843); color: #2a1000; padding: 6px 16px; font-size: 12px; font-weight: 700; letter-spacing: 3px; display: inline-block; margin: 8px 0; }
+        .title { font-family: 'Great Vibes', cursive; font-size: 50px; color: #5c3d00; margin: 6px 0; }
+        .subtitle { font-size: 15px; color: #8b6914; letter-spacing: 5px; margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+        .ornament { font-size: 12px; color: #d4a843; letter-spacing: 5px; margin: 6px 0; }
+        .phrase { font-size: 18px; color: #6b4d00; margin: 4px 0; font-style: italic; font-family: 'Cormorant Garamond', serif; }
+        .recipient { font-family: 'Great Vibes', cursive; font-size: 52px; color: #3d1a00; margin: 6px 0; line-height: 1.1; }
+        .creator-name { font-family: 'Great Vibes', cursive; font-size: 42px; color: #5c3d00; margin: 4px 0; line-height: 1.1; }
+        .score-big { font-family: 'Playfair Display', serif; font-size: 68px; color: #3d1a00; font-weight: 900; margin: 4px 0; line-height: 1; }
+        .percent { font-size: 32px; }
+        .hearts-row { font-size: 22px; margin: 6px 0; }
+        .status-text { font-size: 22px; color: #5c3d00; font-weight: 700; margin: 6px 0; }
+        .prediction { font-size: 18px; color: #6b4d00; margin: 10px 0; font-style: italic; line-height: 1.5; padding: 0 8px; }
+        .footer-text { font-size: 13px; color: #a08040; margin-top: 10px; letter-spacing: 4px; }
+        .share-btn { background: linear-gradient(135deg, #1a0800, #3d1a00, #1a0800); color: #ffd700; border: 2px solid #d4a843; padding: 16px 28px; font-size: 20px; font-weight: 700; letter-spacing: 2px; cursor: pointer; width: 100%; max-width: 400px; text-transform: uppercase; }
         .share-btn:active { transform: scale(0.96); background: #3d1a00; }
     </style>
 </head>
@@ -67,19 +67,19 @@
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script>
         const p = new URLSearchParams(window.location.search);
-        document.getElementById('recipient').textContent = p.get('name') || 'Подруга';
-        document.getElementById('creatorName').textContent = p.get('creator') || 'Подругу';
+        document.getElementById('recipient').textContent = decodeURIComponent(p.get('name') || 'Подруга');
+        document.getElementById('creatorName').textContent = decodeURIComponent(p.get('creator') || 'Подругу');
         const s = parseInt(p.get('score') || '85');
         document.getElementById('scoreBig').innerHTML = s + '<span class="percent">%</span>';
         document.getElementById('hearts').textContent = '💖'.repeat(Math.floor(s/10)) + '🤍'.repeat(10-Math.floor(s/10));
-        document.getElementById('status').textContent = p.get('status') || 'ЛУЧШИЕ ПОДРУГИ! 💎';
-        document.getElementById('prediction').textContent = p.get('prediction') || '✨ Ваша дружба — настоящее сокровище! ✨';
+        document.getElementById('status').textContent = decodeURIComponent(p.get('status') || 'ЛУЧШИЕ ПОДРУГИ!');
+        document.getElementById('prediction').textContent = decodeURIComponent(p.get('prediction') || '✨ Ваша дружба — настоящее сокровище!');
         async function shareDiploma() {
             const c = await html2canvas(document.getElementById('diploma'), { scale: 2, backgroundColor: '#0a0018' });
             const b = await new Promise(r => c.toBlob(r, 'image/png'));
             const f = new File([b], 'zolotoy-diplom.png', { type: 'image/png' });
             if (navigator.canShare && navigator.canShare({ files: [f] })) {
-                await navigator.share({ files: [f], title: '🌟 Мой золотой диплом дружбы!', text: 'Пройди тест и получи свой! @PodrugaTestBot' });
+                await navigator.share({ files: [f], title: 'Мой золотой диплом дружбы!', text: 'Пройди тест и получи свой! @PodrugaTestBot' });
             } else {
                 const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'zolotoy-diplom.png'; a.click();
             }
