@@ -1,0 +1,44 @@
+nohup: ignoring input
+----------------------------------------
+Exception occurred during processing of request from ('66.132.172.138', 35774)
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/socketserver.py", line 318, in _handle_request_noblock
+    self.process_request(request, client_address)
+  File "/usr/lib/python3.12/socketserver.py", line 349, in process_request
+    self.finish_request(request, client_address)
+  File "/usr/lib/python3.12/socketserver.py", line 362, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "/usr/lib/python3.12/socketserver.py", line 761, in __init__
+    self.handle()
+  File "/usr/lib/python3.12/http/server.py", line 436, in handle
+    self.handle_one_request()
+  File "/usr/lib/python3.12/http/server.py", line 404, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socket.py", line 707, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+ConnectionResetError: [Errno 104] Connection reset by peer
+----------------------------------------
+66.132.172.138 - - [04/May/2026 22:45:40] code 400, message Bad request version ('À\\x14À')
+66.132.172.138 - - [04/May/2026 22:45:40] "\x16\x03\x01\x00î\x01\x00\x00ê\x03\x03U5âãÏ´E\x90\x07¥{\x1cÔ¸`w©¹\x94®Ñr¥\x7fÖ¥\x9f\x80«ìTø þ,QÆõ«¤x?\x9d3\x01|!Õ©yYK=T Ö¾9\x80³µ\x82wUñ\x00&Ì¨Ì©À/À0À+À,À\x13À\x09À\x14À" 400 -
+66.132.172.138 - - [04/May/2026 22:45:44] code 501, message Unsupported method ('GET')
+66.132.172.138 - - [04/May/2026 22:45:44] "GET / HTTP/1.1" 501 -
+66.132.172.138 - - [04/May/2026 22:45:50] code 400, message Bad request version ('À\\x14À')
+66.132.172.138 - - [04/May/2026 22:45:50] "\x16\x03\x01\x00î\x01\x00\x00ê\x03\x03Ó©ñbó\x97\x84_NQU_'¦6Ì\x14#dÁD\x15Û\x1eh\x86òöø&½Õ ½Ö$$h\x09dÂÊ¡ÖIt±+@$X\x1f½Ýäé Øö½\x13,\x08°\x9d\x00&Ì¨Ì©À/À0À+À,À\x13À\x09À\x14À" 400 -
+66.132.172.138 - - [04/May/2026 22:45:50] code 501, message Unsupported method ('GET')
+66.132.172.138 - - [04/May/2026 22:45:50] "GET / HTTP/1.1" 501 -
+66.132.172.138 - - [04/May/2026 22:45:50] code 505, message Invalid HTTP version (2.0)
+66.132.172.138 - - [04/May/2026 22:45:50] "PRI * HTTP/2.0" 505 -
+66.132.172.138 - - [04/May/2026 22:46:01] code 400, message Bad request version ('AØ\\x15×')
+66.132.172.138 - - [04/May/2026 22:46:01] "\x16\x03\x01\x00î\x01\x00\x00ê\x03\x03\x9b\x87\x117Ã\x094w¸U\x12\x9fáªÎK(;ó\x83}\x0f7Ë²<Ì@@èOK AØ\x15×" 400 -
+66.132.172.138 - - [04/May/2026 22:46:02] code 501, message Unsupported method ('GET')
+66.132.172.138 - - [04/May/2026 22:46:02] "GET /security.txt HTTP/1.1" 501 -
+156.238.229.65 - - [04/May/2026 23:11:06] code 501, message Unsupported method ('GET')
+156.238.229.65 - - [04/May/2026 23:11:06] "GET http://www.cnshuhai.com/?_17075210757301020042016344576 HTTP/1.0" 501 -
+205.210.31.89 - - [04/May/2026 23:45:29] code 400, message Bad request version ('À\\x13À')
+205.210.31.89 - - [04/May/2026 23:45:29] "\x16\x03\x01\x00î\x01\x00\x00ê\x03\x03ªXEÛN\x95\x06MÁ ¾Þ\x7fÆp);99\x92\x97ÉI2~\x92\x82<\x09Û¶\x12 À\x984\x05 \x93¤2c)\x19\x87é)\x84?ób\x18\x96s\x0ew\x83ðjw\x9a®ø~Z\x00&À+À/À,À0Ì©Ì¨À\x09À\x13À" 400 -
+205.210.31.89 - - [04/May/2026 23:45:29] code 400, message Bad request syntax ("\\x16\\x03\\x01\\x00Ê\\x01\\x00\\x00Æ\\x03\\x03\\x89²u\\x8b\\x80\\x16ëYF\\x9dã'uùL\\x18j\\x17h")
+205.210.31.89 - - [04/May/2026 23:45:29] "\x16\x03\x01\x00Ê\x01\x00\x00Æ\x03\x03\x89²u\x8b\x80\x16ëYF\x9dã'uùL\x18j\x17h" 400 -
+5.187.35.26 - - [04/May/2026 23:49:59] code 501, message Unsupported method ('GET')
+5.187.35.26 - - [04/May/2026 23:49:59] "GET /..%2F..%2F..%2F..%2F..%2F..%2Fetc%2Fpasswd HTTP/1.1" 501 -
