@@ -9,10 +9,9 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             background: radial-gradient(ellipse at 50% 30%, #2d1050 0%, #1a0a30 40%, #0a0018 70%, #050010 100%);
-            min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            padding: 12px; gap: 14px; overflow: hidden;
+            min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+            padding: 20px 12px 100px; gap: 16px; overflow-y: auto;
         }
-        /* Падающие эмодзи */
         .falling { position: fixed; top: -60px; animation: fall linear infinite; pointer-events: none; z-index: 0; font-size: 24px; }
         @keyframes fall {
             0% { transform: translateY(-60px) rotate(0deg); opacity: 0; }
@@ -23,20 +22,19 @@
         .diploma {
             position: relative; z-index: 1;
             width: 100%; max-width: 340px; 
+            margin: 0 auto;
         }
-        /* Овальная рамка */
         .oval-frame {
             background: linear-gradient(180deg, #fef8e8 0%, #fdf2d0 15%, #fce8b2 40%, #ffefd5 60%, #fce8b2 85%, #fef8e8 100%);
-            border-radius: 50% / 8%;
+            border-radius: 50% / 6%;
             padding: 6px;
-            box-shadow: 0 0 40px rgba(212,168,67,0.4), 0 0 80px rgba(212,168,67,0.2), inset 0 0 40px rgba(212,168,67,0.05);
-            position: relative;
+            box-shadow: 0 0 40px rgba(212,168,67,0.4), 0 0 80px rgba(212,168,67,0.2);
         }
         .gold-border {
             background: linear-gradient(135deg, #8b6914, #d4a843, #ffd700, #d4a843, #8b6914, #d4a843, #ffd700);
             background-size: 300% 300%;
             animation: borderShine 4s linear infinite;
-            border-radius: 50% / 8%;
+            border-radius: 50% / 6%;
             padding: 3px;
         }
         @keyframes borderShine {
@@ -45,13 +43,12 @@
         }
         .inner {
             background: linear-gradient(180deg, #fef8e8, #fdf2d0 20%, #fce8b2 50%, #fdf2d0 80%, #fef8e8);
-            border-radius: 50% / 8%;
+            border-radius: 50% / 6%;
             padding: 25px 20px 20px;
             text-align: center;
             position: relative;
             overflow: hidden;
         }
-        /* Блёстки внутри */
         .sparkle {
             position: absolute; width: 4px; height: 4px;
             background: #ffd700; border-radius: 50%;
@@ -64,11 +61,11 @@
         }
         .crown { font-size: 50px; animation: bounce 2s ease-in-out infinite; display: block; }
         @keyframes bounce { 0%,100% { transform: translateY(0); } 35% { transform: translateY(-10px); } }
-        .badge { background: linear-gradient(135deg, #ffd700, #d4a843); color: #2a1000; padding: 5px 14px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 3px; display: inline-block; margin: 6px 0; font-family: 'Cormorant Garamond', serif; }
+        .badge { background: linear-gradient(135deg, #ffd700, #d4a843); color: #2a1000; padding: 5px 14px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 3px; display: inline-block; margin: 6px 0; }
         .title { font-family: 'Great Vibes', cursive; font-size: 42px; color: #5c3d00; margin: 2px 0; line-height: 1; }
         .subtitle { font-size: 13px; color: #8b6914; letter-spacing: 5px; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
         .ornament { font-size: 10px; color: #d4a843; letter-spacing: 4px; margin: 4px 0; }
-        .phrase { font-size: 16px; color: #6b4d00; margin: 3px 0; font-style: italic; font-family: 'Cormorant Garamond', serif; }
+        .phrase { font-size: 16px; color: #6b4d00; margin: 3px 0; font-style: italic; }
         .recipient { font-family: 'Great Vibes', cursive; font-size: 46px; color: #3d1a00; margin: 4px 0; line-height: 1.1; }
         .creator-name { font-family: 'Great Vibes', cursive; font-size: 36px; color: #5c3d00; margin: 2px 0; line-height: 1.1; }
         .score-big { font-family: 'Playfair Display', serif; font-size: 60px; color: #3d1a00; font-weight: 900; margin: 2px 0; line-height: 1; }
@@ -78,20 +75,23 @@
         .status-text { font-size: 20px; color: #5c3d00; font-weight: 700; margin: 4px 0; }
         .prediction { font-size: 16px; color: #6b4d00; margin: 8px 0; font-style: italic; line-height: 1.4; padding: 0 6px; }
         .footer-text { font-size: 11px; color: #a08040; margin-top: 8px; letter-spacing: 3px; }
+        
+        /* Фиксированная кнопка внизу */
         .share-btn { 
-            position: relative; z-index: 1;
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 10;
             background: linear-gradient(135deg, #1a0800, #3d1a00, #1a0800); 
             color: #ffd700; border: 2px solid #d4a843; 
             padding: 16px 28px; border-radius: 30px;
             font-family: 'Cormorant Garamond', serif;
             font-size: 20px; font-weight: 700; letter-spacing: 2px; 
-            cursor: pointer; width: 100%; max-width: 340px; 
+            cursor: pointer; width: calc(100% - 40px); max-width: 340px; 
             text-transform: uppercase;
             box-shadow: 0 0 30px rgba(255,215,0,0.3);
             animation: btnGlow 2s ease-in-out infinite;
         }
         @keyframes btnGlow { 0%,100% { box-shadow: 0 0 30px rgba(255,215,0,0.3); } 50% { box-shadow: 0 0 50px rgba(255,215,0,0.6); } }
-        .share-btn:active { transform: scale(0.96); }
+        .share-btn:active { transform: translateX(-50%) scale(0.96); }
     </style>
 </head>
 <body>
@@ -123,7 +123,6 @@
     
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script>
-        // Параметры
         const p = new URLSearchParams(window.location.search);
         document.getElementById('recipient').textContent = decodeURIComponent(p.get('name') || 'Подруга');
         document.getElementById('creatorName').textContent = decodeURIComponent(p.get('creator') || 'Подругу');
@@ -146,7 +145,7 @@
             document.body.appendChild(e);
         }
         
-        // Блёстки внутри
+        // Блёстки
         const inner = document.querySelector('.inner');
         for (let i=0; i<20; i++) {
             const s = document.createElement('div');
